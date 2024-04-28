@@ -1,0 +1,6 @@
+*.s9pk
+.vscode/
+.DS_Store
+scripts/*.js
+docker-images
+tmp
