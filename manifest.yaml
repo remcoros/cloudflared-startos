@@ -1,4 +1,4 @@
-id: cloudflared-webtop
+id: cloudflared
 title: "Cloudflare Tunnel"
 version: 2024.4.1
 release-notes: |

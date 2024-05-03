@@ -19,7 +19,7 @@ Install the system dependencies below to build this project by following the ins
 
 ## Cloning
 
-Clone the Webtop package repository locally.
+Clone the repository locally.
 
 ```
 git clone git@github.com:remcoros/cloudflared-startos.git
@@ -28,7 +28,7 @@ cd cloudflared-startos
 
 ## Building
 
-To build the **Wasabi** service as a universal package, run the following command:
+To build the **Cloudflare Tunnel** service as a universal package, run the following command:
 
 ```
 make
@@ -46,7 +46,7 @@ start-cli auth login
 make install
 ```
 
-**Tip:** You can also install the wasabi-webtop.s9pk by sideloading it under the **StartOS > System > Sideload a Service** section.
+**Tip:** You can also install the cloudflared.s9pk by sideloading it under the **StartOS > System > Sideload a Service** section.
 
 ## Verify Install
 
