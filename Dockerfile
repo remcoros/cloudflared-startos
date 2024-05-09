@@ -9,6 +9,16 @@ FROM debian:12-slim
 
 ARG PLATFORM
 
+RUN \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y \
+        ca-certificates && \
+    apt-get autoclean && \
+    rm -rf \
+      /var/lib/apt/lists/* \
+      /var/tmp/* \
+      /tmp/*
+
 # add local files
 COPY --chmod=a+x ./docker_entrypoint.sh /usr/local/bin/docker_entrypoint.sh
 COPY --chmod=0755 ./tmp/yq_linux_${PLATFORM} /usr/local/bin/yq
