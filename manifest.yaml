@@ -1,6 +1,6 @@
 id: cloudflared
 title: "Cloudflare Tunnel"
-version: 2024.4.1
+version: 2024.5.0
 release-notes: |
   * Initial release of Cloudflare Tunnel client for StartOS
 license: Apache 2.0
