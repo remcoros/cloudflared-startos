@@ -34,6 +34,7 @@ jobs:
         run: |
           PACKAGE_ID=${{ env.package_id }}
           sha256sum ${PACKAGE_ID}.s9pk > ${PACKAGE_ID}.s9pk.sha256
+          echo "${PACKAGE_ID}.s9pk.sha256: $(cat ${PACKAGE_ID}.s9pk.sha256)"
         shell: bash
 
       - name: Generate changelog
