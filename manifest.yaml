@@ -1,8 +1,8 @@
 id: cloudflared
 title: "Cloudflare Tunnel"
-version: 2024.6.0
+version: 2024.6.1
 release-notes: |
-  * Full list of upstream changes [available here](https://github.com/cloudflare/cloudflared/compare/2024.5.0...2024.6.0)
+  * Full list of upstream changes [available here](https://github.com/cloudflare/cloudflared/compare/2024.6.0...2024.6.1)
 license: Apache 2.0
 wrapper-repo: "https://github.com/remcoros/cloudflared-startos"
 upstream-repo: "https://github.com/cloudflare/cloudflared"
