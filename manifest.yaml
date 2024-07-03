@@ -1,8 +1,8 @@
 id: cloudflared
 title: "Cloudflare Tunnel"
-version: 2024.6.1
+version: 2024.6.1.1
 release-notes: |
-  * Full list of upstream changes [available here](https://github.com/cloudflare/cloudflared/compare/2024.6.0...2024.6.1)
+  * Fix backup/restore
 license: Apache 2.0
 wrapper-repo: "https://github.com/remcoros/cloudflared-startos"
 upstream-repo: "https://github.com/cloudflare/cloudflared"
@@ -49,11 +49,27 @@ backup:
     image: compat
     system: true
     entrypoint: compat
+    args:
+      - duplicity
+      - create
+      - /mnt/backup
+      - /root/data
+    mounts:
+      BACKUP: "/mnt/backup" 
+      main: "/root/data"
   restore:
     type: docker
     image: compat
     system: true
     entrypoint: compat
+    args:
+      - duplicity
+      - restore
+      - /mnt/backup
+      - /root/data
+    mounts:
+      BACKUP: "/mnt/backup"
+      main: "/root/data"
 migrations:
   from:
     "*":
