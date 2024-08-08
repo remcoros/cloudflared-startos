@@ -1,4 +1,4 @@
-CLOUDFLARED_IMAGE := cloudflare/cloudflared:2024.6.1
+CLOUDFLARED_IMAGE := cloudflare/cloudflared:2024.8.2
 # sha256 hashes can be found in https://github.com/mikefarah/yq/releases/download/v4.40.7/checksums-bsd
 YQ_VERSION := 4.40.7
 YQ_SHA_AMD64 := 4f13ee9303a49f7e8f61e7d9c87402e07cc920ae8dfaaa8c10d7ea1b8f9f48ed
@@ -26,11 +26,10 @@ verify: $(PKG_ID).s9pk
 	@echo "   Filesize: $(shell du -h $(PKG_ID).s9pk) is ready"
 
 install:
-ifeq (,$(wildcard ~/.embassy/config.yaml))
-	@echo; echo "You must define \"host: http://server-name.local\" in ~/.embassy/config.yaml config file first"; echo
-else
-	start-cli package install $(PKG_ID).s9pk
-endif
+	@if [ ! -f ~/.embassy/config.yaml ]; then echo "You must define \"host: http://server-name.local\" in ~/.embassy/config.yaml config file first."; exit 1; fi
+	@echo "\nInstalling to $$(grep -v '^#' ~/.embassy/config.yaml | cut -d'/' -f3) ...\n"
+	@[ -f $(PKG_ID).s9pk ] || ( $(MAKE) && echo "\nInstalling to $$(grep -v '^#' ~/.embassy/config.yaml | cut -d'/' -f3) ...\n" )
+	@start-cli package install $(PKG_ID).s9pk
 
 clean:
 	rm -rf docker-images
