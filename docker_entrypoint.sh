@@ -6,4 +6,4 @@ echo
 
 export TUNNEL_TOKEN="$(yq e '.token' /root/data/start9/config.yaml)"
 
-/usr/local/bin/cloudflared tunnel --no-autoupdate run
+/usr/local/bin/cloudflared --no-autoupdate --management-diagnostics=false tunnel run
