@@ -1,8 +1,8 @@
 id: cloudflared
 title: "Cloudflare Tunnel"
-version: 2024.10.1
+version: 2024.11.0
 release-notes: |
-  * Update to cloudflared 2024.10.1 - See [full changelog](https://github.com/cloudflare/cloudflared/blob/2024.10.1/RELEASE_NOTES)
+  * Update to cloudflared 2024.11.0 - See [full changelog](https://github.com/cloudflare/cloudflared/blob/2024.11.0/RELEASE_NOTES)
 license: Apache 2.0
 wrapper-repo: "https://github.com/remcoros/cloudflared-startos"
 upstream-repo: "https://github.com/cloudflare/cloudflared"
