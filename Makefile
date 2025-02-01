@@ -1,4 +1,4 @@
-CLOUDFLARED_IMAGE := cloudflare/cloudflared:2024.12.2
+CLOUDFLARED_IMAGE := cloudflare/cloudflared:2025.1.1
 # sha256 hashes can be found in https://github.com/mikefarah/yq/releases/download/v4.40.7/checksums-bsd
 YQ_VERSION := 4.40.7
 YQ_SHA_AMD64 := 4f13ee9303a49f7e8f61e7d9c87402e07cc920ae8dfaaa8c10d7ea1b8f9f48ed
@@ -37,7 +37,7 @@ clean:
 	rm -f scripts/*.js
 
 scripts/embassy.js: $(TS_FILES)
-	deno bundle scripts/embassy.ts scripts/embassy.js
+	deno run --allow-read --allow-write --allow-env --allow-net scripts/bundle.ts
 
 docker-images/aarch64.tar: manifest.yaml Dockerfile docker_entrypoint.sh tmp/yq_linux_arm64
 ifeq ($(ARCH),x86_64)
