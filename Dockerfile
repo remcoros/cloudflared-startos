@@ -1,4 +1,4 @@
-# cloudflared container version is defined in Makefile
+# cloudflared container version is defined in manifest.ts
 ARG CLOUDFLARED_IMAGE
 
 # used to copy cloudflared binary
@@ -19,7 +19,5 @@ RUN \
       /var/tmp/* \
       /tmp/*
 
-# add local files
-COPY --chmod=0755 ./docker_entrypoint.sh /usr/local/bin/docker_entrypoint.sh
-COPY --chmod=0755 ./tmp/yq_linux_${PLATFORM} /usr/local/bin/yq
+# add cloudflared binary
 COPY --chmod=0755 --from=cloudflared /usr/local/bin/cloudflared /usr/local/bin/cloudflared
