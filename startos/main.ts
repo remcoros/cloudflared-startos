@@ -27,6 +27,8 @@ export const main = sdk.setupMain(async ({ effects, started }) => {
       '/usr/local/bin/cloudflared',
       '--no-autoupdate',
       '--management-diagnostics=false',
+      '--metrics',
+      '0.0.0.0:20241',
       'tunnel',
       'run',
     ],
@@ -34,11 +36,16 @@ export const main = sdk.setupMain(async ({ effects, started }) => {
       TUNNEL_TOKEN: conf.token,
     },
     ready: {
-      display: null,
-      fn: () => ({
-        result: 'success',
-        message: null,
-      }),
+      display: 'Cloudflare tunnel client',
+      fn: () =>
+        sdk.healthCheck.checkWebUrl(
+          effects,
+          'http://cloudflared.startos:20241/metrics',
+          {
+            successMessage: 'Cloudflare tunnel client is running',
+            errorMessage: 'Cloudflare tunnel client is not running',
+          },
+        ),
     },
     requires: [],
   })
