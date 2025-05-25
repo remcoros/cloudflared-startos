@@ -10,12 +10,14 @@ const inputSpec = InputSpec.of({
     required: true,
     default: '',
     placeholder: '',
+    masked: true,
+    inputmode: 'text',
   }),
 })
 
 export const setToken = sdk.Action.withInput(
   // id
-  'setToken',
+  'set-token',
 
   // metadata
   async ({ effects }) => ({
