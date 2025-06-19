@@ -7,9 +7,7 @@ export const main = sdk.setupMain(async ({ effects, started }) => {
 
   const conf = (await store.read().const(effects))!
 
-  const healthReceipts: T.HealthCheck[] = []
-
-  return sdk.Daemons.of(effects, started, healthReceipts).addDaemon('primary', {
+  return sdk.Daemons.of(effects, started).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,
       {
@@ -23,17 +21,19 @@ export const main = sdk.setupMain(async ({ effects, started }) => {
       }),
       'main',
     ),
-    command: [
-      '/usr/local/bin/cloudflared',
-      '--no-autoupdate',
-      '--management-diagnostics=false',
-      '--metrics',
-      '0.0.0.0:20241',
-      'tunnel',
-      'run',
-    ],
-    env: {
-      TUNNEL_TOKEN: conf.token,
+    exec: {
+      command: [
+        '/usr/local/bin/cloudflared',
+        '--no-autoupdate',
+        '--management-diagnostics=false',
+        '--metrics',
+        '0.0.0.0:20241',
+        'tunnel',
+        'run',
+      ],
+      env: {
+        TUNNEL_TOKEN: conf.token,
+      },
     },
     ready: {
       display: 'Cloudflare tunnel client',
