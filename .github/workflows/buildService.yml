@@ -30,9 +30,8 @@ jobs:
           echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
           printf "\n SHA256SUM: $(sha256sum ${PACKAGE_ID}.s9pk) \n"
         shell: bash
-#
-#      - name: Upload .s9pk
-#        uses: actions/upload-artifact@v4
-#        with:
-#          name: ${{ env.package_id }}.s9pk
-#          path: ./${{ env.package_id }}.s9pk
+      - name: Upload .s9pk
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.package_id }}.s9pk
+          path: ./${{ env.package_id }}.s9pk
