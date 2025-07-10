@@ -1,6 +1,5 @@
 import { store } from './fileModels/store.yaml'
 import { sdk } from './sdk'
-import { T } from '@start9labs/start-sdk'
 
 export const main = sdk.setupMain(async ({ effects, started }) => {
   console.info('Starting cloudflared...')
