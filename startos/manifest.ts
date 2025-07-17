@@ -9,6 +9,7 @@ export const manifest = setupManifest({
   wrapperRepo: 'https://github.com/remcoros/cloudflared-startos',
   upstreamRepo: 'https://github.com/cloudflare/cloudflared',
   supportSite: 'https://github.com/cloudflare/cloudflared/issues',
+  docsUrl: 'https://github.com/remcoros/cloudflared-startos/blob/main/instructions.md',
   marketingSite: 'https://cloudflare.com/',
   donationUrl: 'https://cloudflare.com/',
   description: {
