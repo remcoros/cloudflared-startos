@@ -1,6 +1,6 @@
 import { setupManifest } from '@start9labs/start-sdk'
 
-const CLOUDFLARED_IMAGE = 'cloudflare/cloudflared:2025.7.0'
+const CLOUDFLARED_IMAGE = 'cloudflare/cloudflared:2025.8.0'
 
 export const manifest = setupManifest({
   id: 'cloudflared',
