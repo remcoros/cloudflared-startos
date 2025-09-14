@@ -1,6 +1,13 @@
 import { setupManifest } from '@start9labs/start-sdk'
+import { ImageSource } from '@start9labs/start-sdk/base/lib/osBindings'
+import { SDKImageInputSpec } from '@start9labs/start-sdk/base/lib/types/ManifestTypes'
 
-const CLOUDFLARED_IMAGE = 'cloudflare/cloudflared:2025.8.0'
+const BUILD = process.env.BUILD || ''
+
+const architectures =
+  BUILD === 'x86_64' || BUILD === 'aarch64' ? [BUILD] : ['x86_64', 'aarch64']
+
+const CLOUDFLARED_IMAGE = 'cloudflare/cloudflared:2025.8.1'
 
 export const manifest = setupManifest({
   id: 'cloudflared',
@@ -9,7 +16,8 @@ export const manifest = setupManifest({
   wrapperRepo: 'https://github.com/remcoros/cloudflared-startos',
   upstreamRepo: 'https://github.com/cloudflare/cloudflared',
   supportSite: 'https://github.com/cloudflare/cloudflared/issues',
-  docsUrl: 'https://github.com/remcoros/cloudflared-startos/blob/main/instructions.md',
+  docsUrl:
+    'https://github.com/remcoros/cloudflared-startos/blob/main/instructions.md',
   marketingSite: 'https://cloudflare.com/',
   donationUrl: 'https://cloudflare.com/',
   description: {
@@ -19,7 +27,7 @@ export const manifest = setupManifest({
   volumes: ['main'],
   images: {
     main: {
-      arch: ['x86_64', 'aarch64'],
+      arch: architectures,
       source: {
         dockerBuild: {
           dockerfile: 'Dockerfile',
@@ -27,10 +35,12 @@ export const manifest = setupManifest({
             CLOUDFLARED_IMAGE: CLOUDFLARED_IMAGE,
           },
         },
-      },
-    },
+      } as ImageSource,
+    } as SDKImageInputSpec,
   },
-  hardwareRequirements: {},
+  hardwareRequirements: {
+    arch: architectures,
+  },
   alerts: {
     install: null,
     update: null,
