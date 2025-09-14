@@ -6,40 +6,577 @@ on:
       - 'v*.*'
 
 jobs:
-  ReleasePackage:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
+  BuildARM:
+    name: Build S9PK (aarch64)
+    runs-on: ubuntu-24.04-arm
+    outputs:
+      package_id: ${{ steps.build.outputs.package_id }}
+      arch_package: ${{ steps.build.outputs.arch_package }}
+      has_dockerfile: ${{ steps.check-dockerfile.outputs.has_dockerfile }}
+      build_type: ${{ steps.check-dockerfile.outputs.build_type }}
     steps:
-      - name: Prepare StartOS SDK
-        uses: start9labs/sdk@v2
+      - name: Prepare StartOS SDK (Super Cached)
+        uses: k0gen/sdk@v3-optimization
 
       - name: Checkout services repository
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Build the service package
+      # UNIVERSAL: Detect build strategy automatically
+      - name: Detect Docker build strategy
+        id: check-dockerfile
+        run: |
+          # Check for custom Dockerfile
+          if [ -f "Dockerfile" ] || find . -name "Dockerfile*" -type f | grep -q .; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+            echo "build_type=custom" >> $GITHUB_OUTPUT
+            echo "🏗️  DETECTED: Custom Docker build (Dockerfile found)"
+            echo "   Strategy: BuildKit cache + Image export"
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+            echo "build_type=pull" >> $GITHUB_OUTPUT
+            echo "📥 DETECTED: Docker pull only (no Dockerfile)"
+            echo "   Strategy: Image export only"
+          fi
+
+      # CONDITIONAL: Setup BuildKit only for custom builds
+      - name: Set up Docker Buildx (custom builds only)
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
+            network=host
+
+      # Cache Node.js dependencies if they exist
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: |
+            node_modules
+            ~/.npm
+          key: ${{ runner.os }}-${{ runner.arch }}-node-modules-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-node-modules-
+
+      # Install Node.js dependencies only if cache miss and package.json exists
+      - name: Install Node.js dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true' && hashFiles('**/package.json') != ''
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "Installing with npm..."
+            npm ci
+          elif [ -f "yarn.lock" ]; then
+            echo "Installing with yarn..."
+            yarn install --frozen-lockfile
+          else
+            echo "Installing with npm (no lockfile)..."
+            npm install
+          fi
+
+      # Cache Rust build artifacts (only if Rust project exists)
+      - name: Cache Rust build artifacts
+        if: hashFiles('**/Cargo.lock') != ''
+        uses: actions/cache@v4
+        id: cache-rust
+        with:
+          path: |
+            target/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-${{ hashFiles('**/Cargo.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-rust-
+
+      - name: Build ARM package
         id: build
         env:
-          S9DEVKEY: ${{ secrets.S9DEVKEY }}
+          # CONDITIONAL: Enable BuildKit cache only for custom builds
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_PROGRESS: plain
         run: |
           start-cli init
-          if [[ -n "$S9DEVKEY" ]]; then
-            echo "Using developer key from secrets to sign the package."
-            printf '%s' "$S9DEVKEY" > ~/.startos/developer.key.pem
+          chmod 600 ~/.startos/developer.key.pem
+
+          echo "🏗️ Building ARM package:"
+          echo "  Build type: ${{ steps.check-dockerfile.outputs.build_type }}"
+          echo "  Custom Dockerfile: ${{ steps.check-dockerfile.outputs.has_dockerfile }}"
+          echo "  Node modules cache hit: ${{ steps.cache-node-modules.outputs.cache-hit }}"
+          echo "  Rust cache hit: ${{ steps.cache-rust.outputs.cache-hit }}"
+
+          # CONDITIONAL: Set BuildKit cache options only for custom builds
+          if [ "${{ steps.check-dockerfile.outputs.has_dockerfile }}" = "true" ]; then
+            export BUILDKIT_CACHE_FROM="type=gha,scope=arm-build"
+            export BUILDKIT_CACHE_TO="type=gha,mode=max,scope=arm-build"
+            echo "  Docker BuildKit cache: Enabled (custom build)"
           else
-            echo "Using newly generated developer key to sign the package."
+            echo "  Docker strategy: Pull-only (no BuildKit cache needed)"
           fi
-          RUST_LOG=debug RUST_BACKTRACE=1 make
-          sleep 2
-          MANIFEST_JSON=$(start-cli s9pk inspect *.s9pk manifest)
+
+          time RUST_LOG=debug RUST_BACKTRACE=1 make aarch64
+
+          # Find the generated package (dynamic naming)
+          ARCH_PACKAGE=$(ls *_aarch64.s9pk | head -n1)
+          PACKAGE_ID=$(start-cli s9pk inspect "$ARCH_PACKAGE" manifest | jq -r '.id')
+
+          echo "package_id=${PACKAGE_ID}" >> $GITHUB_OUTPUT
+          echo "arch_package=${ARCH_PACKAGE}" >> $GITHUB_OUTPUT
+          echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
+          echo "arch_package=${ARCH_PACKAGE}" >> $GITHUB_ENV
+
+          printf "\n ARM SHA256: $(sha256sum ${ARCH_PACKAGE}) \n"
+
+      # SMART: Export Docker images based on S9PK manifest
+      - name: Export Docker images (manifest-driven + intelligent fallback)
+        run: |
+          echo "📦 Exporting Docker images with intelligent detection..."
+          mkdir -p docker-cache-arm
+          
+          # Step 1: Try to get images from S9PK manifest
+          ARCH_PACKAGE=$(ls *_aarch64.s9pk 2>/dev/null | head -n1)
+          MANIFEST_IMAGES=""
+          
+          if [ -n "$ARCH_PACKAGE" ]; then
+            echo "📋 Reading manifest from: $ARCH_PACKAGE"
+            MANIFEST_IMAGES=$(start-cli s9pk inspect "$ARCH_PACKAGE" manifest 2>/dev/null | jq -r '.images | keys[]' 2>/dev/null | tr '\n' ' ' || echo "")
+            echo "🎯 Manifest images: $MANIFEST_IMAGES"
+          fi
+          
+          # Step 2: Get current Docker images (excluding system images)  
+          CURRENT_IMAGES=$(docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -vE "(<none>|buildkit|qemu-user-static|alpine:latest|ubuntu:latest)" || true)
+          
+          echo "🐳 Available Docker images:"
+          echo "$CURRENT_IMAGES" | head -10
+          
+          # Step 3: Smart export strategy
+          exported_count=0
+          
+          if [ -n "$MANIFEST_IMAGES" ]; then
+            # Priority 1: Export images mentioned in manifest
+            echo "🎯 Exporting manifest-based images..."
+            for image_key in $MANIFEST_IMAGES;
+              do
+              echo "Looking for: $image_key"
+              matching_images=$(echo "$CURRENT_IMAGES" | grep -i "$image_key" | cut -d' ' -f1 || true)
+              
+              if [ -n "$matching_images" ]; then
+                echo "$matching_images" | while read docker_image;
+                  do
+                  if [ -n "$docker_image" ]; then
+                    safe_name=$(echo $docker_image | sed 's#[:/.]#_#g')
+                    size_info=$(echo "$CURRENT_IMAGES" | grep "^$docker_image " | awk '{print $2}' || echo "unknown")
+                    
+                    echo "   📦 Exporting: $docker_image ($size_info)"
+                    if docker save "$docker_image" -o "docker-cache-arm/${safe_name}.tar" 2>/dev/null; then
+                      tar_size=$(ls -lh "docker-cache-arm/${safe_name}.tar" | awk '{print $5}')
+                      echo "   ✅ Saved: $tar_size"
+                      exported_count=$((exported_count + 1))
+                    else
+                      echo "   ❌ Failed to export"
+                      rm -f "docker-cache-arm/${safe_name}.tar"
+                    fi
+                  fi
+                done
+              else
+                echo "   ⚠️  Not found in current images: $image_key"
+              fi
+            done
+          fi
+          
+          # Priority 2: If no manifest images found, export all relevant images
+          if [ "$exported_count" -eq 0 ]; then
+            echo "🔄 No manifest images exported, using fallback strategy..."
+            echo "$CURRENT_IMAGES" | while read image_line;
+              do
+              if [ -n "$image_line" ]; then
+                docker_image=$(echo "$image_line" | cut -d' ' -f1)
+                size_info=$(echo "$image_line" | cut -d' ' -f2)
+                safe_name=$(echo $docker_image | sed 's#[:/.]#_#g')
+                
+                echo "   📦 Exporting: $docker_image ($size_info)"
+                if docker save "$docker_image" -o "docker-cache-arm/${safe_name}.tar" 2>/dev/null; then
+                  tar_size=$(ls -lh "docker-cache-arm/${safe_name}.tar" | awk '{print $5}')
+                  echo "   ✅ Saved: $tar_size"
+                  exported_count=$((exported_count + 1))
+                else
+                  echo "   ❌ Failed"
+                  rm -f "docker-cache-arm/${safe_name}.tar"
+                fi
+              fi
+            done
+          fi
+          
+          # Final summary
+          if [ "$exported_count" -eq 0 ]; then
+            echo "No images cached" > docker-cache-arm/.empty
+            echo "❌ No images were cached!"
+          else
+            echo "=== ARM CACHE SUMMARY ==="
+            echo "✅ Exported $exported_count image(s)"
+            ls -lah docker-cache-arm/*.tar 2>/dev/null | head -5
+            total_size=$(du -sh docker-cache-arm/ | cut -f1)
+            echo "📊 Total cache size: $total_size"
+          fi
+
+      - name: Upload ARM package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.arch_package }}
+          path: ./${{ env.arch_package }}
+
+      - name: Upload Docker cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-cache-arm
+          path: docker-cache-arm/
+
+  BuildIntel:
+    name: Build S9PK (x86_64)
+    runs-on: ubuntu-24.04
+    outputs:
+      package_id: ${{ steps.build.outputs.package_id }}
+      intel_package: ${{ steps.build.outputs.intel_package }}
+      has_dockerfile: ${{ steps.check-dockerfile.outputs.has_dockerfile }}
+      build_type: ${{ steps.check-dockerfile.outputs.build_type }}
+    steps:
+      - name: Prepare StartOS SDK (Super Cached)
+        uses: k0gen/sdk@v3-optimization
+
+      - name: Checkout services repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # UNIVERSAL: Detect build strategy (same as ARM)
+      - name: Detect Docker build strategy
+        id: check-dockerfile
+        run: |
+          if [ -f "Dockerfile" ] || find . -name "Dockerfile*" -type f | grep -q .; then
+            echo "has_dockerfile=true" >> $GITHUB_OUTPUT
+            echo "build_type=custom" >> $GITHUB_OUTPUT
+            echo "🏗️  DETECTED: Custom Docker build (Dockerfile found)"
+          else
+            echo "has_dockerfile=false" >> $GITHUB_OUTPUT
+            echo "build_type=pull" >> $GITHUB_OUTPUT
+            echo "📥 DETECTED: Docker pull only (no Dockerfile)"
+          fi
+
+      # CONDITIONAL: Setup BuildKit only for custom builds
+      - name: Set up Docker Buildx (custom builds only)
+        if: steps.check-dockerfile.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
+            network=host
+
+      # Cache Node.js dependencies
+      - name: Cache Node.js dependencies
+        uses: actions/cache@v4
+        id: cache-node-modules
+        with:
+          path: |
+            node_modules
+            ~/.npm
+          key: ${{ runner.os }}-${{ runner.arch }}-node-modules-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-node-modules-
+
+      # Install Node.js dependencies
+      - name: Install Node.js dependencies
+        if: steps.cache-node-modules.outputs.cache-hit != 'true' && hashFiles('**/package.json') != ''
+        run: |
+          if [ -f "package-lock.json" ]; then
+            echo "Installing with npm..."
+            npm ci
+          elif [ -f "yarn.lock" ]; then
+            echo "Installing with yarn..."
+            yarn install --frozen-lockfile
+          else
+            echo "Installing with npm (no lockfile)..."
+            npm install
+          fi
+
+      # Cache Rust build artifacts
+      - name: Cache Rust build artifacts
+        if: hashFiles('**/Cargo.lock') != ''
+        uses: actions/cache@v4
+        id: cache-rust  
+        with:
+          path: |
+            target/
+            ~/.cargo/registry/
+            ~/.cargo/git/
+          key: ${{ runner.os }}-${{ runner.arch }}-rust-${{ hashFiles('**/Cargo.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-${{ runner.arch }}-rust-
+
+      - name: Build Intel package
+        id: build
+        env:
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_PROGRESS: plain
+        run: |
+          start-cli init
+          chmod 600 ~/.startos/developer.key.pem
+
+          echo "🏗️ Building Intel package:"
+          echo "  Build type: ${{ steps.check-dockerfile.outputs.build_type }}"
+          echo "  Custom Dockerfile: ${{ steps.check-dockerfile.outputs.has_dockerfile }}"
+          echo "  Node modules cache hit: ${{ steps.cache-node-modules.outputs.cache-hit }}"
+          echo "  Rust cache hit: ${{ steps.cache-rust.outputs.cache-hit }}"
+
+          # CONDITIONAL: Set BuildKit cache with ARM import for custom builds
+          if [ "${{ steps.check-dockerfile.outputs.has_dockerfile }}" = "true" ]; then
+            export BUILDKIT_CACHE_FROM="type=gha,scope=arm-build type=gha,scope=intel-build"
+            export BUILDKIT_CACHE_TO="type=gha,mode=max,scope=intel-build"
+            echo "  Docker BuildKit cache: Enabled with ARM import"
+          else
+            echo "  Docker strategy: Pull-only (no BuildKit cache needed)"
+          fi
+
+          time RUST_LOG=debug RUST_BACKTRACE=1 make x86
+
+          # Find the generated package
+          INTEL_PACKAGE=$(ls *_x86_64.s9pk | head -n1)
+
+          if [ -z "$INTEL_PACKAGE" ]; then
+            echo "❌ No x86_64 package found!"
+            ls -la *.s9pk || echo "No .s9pk files found"
+            exit 1
+          fi
+
+          PACKAGE_ID=$(start-cli s9pk inspect "$INTEL_PACKAGE" manifest | jq -r '.id')
+
+          echo "package_id=${PACKAGE_ID}" >> $GITHUB_OUTPUT
+          echo "intel_package=${INTEL_PACKAGE}" >> $GITHUB_OUTPUT
+          echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
+          echo "intel_package=${INTEL_PACKAGE}" >> $GITHUB_ENV
+
+          printf "\n Intel SHA256: $(sha256sum ${INTEL_PACKAGE}) \n"
+
+      # SMART: Same intelligent Docker export as ARM
+      - name: Export Docker images (manifest-driven + intelligent fallback)
+        run: |
+          echo "📦 Exporting Docker images with intelligent detection..."
+          mkdir -p docker-cache-intel
+          
+          # Step 1: Try to get images from S9PK manifest
+          INTEL_PACKAGE=$(ls *_x86_64.s9pk 2>/dev/null | head -n1)
+          MANIFEST_IMAGES=""
+          
+          if [ -n "$INTEL_PACKAGE" ]; then
+            echo "📋 Reading manifest from: $INTEL_PACKAGE"
+            MANIFEST_IMAGES=$(start-cli s9pk inspect "$INTEL_PACKAGE" manifest 2>/dev/null | jq -r '.images | keys[]' 2>/dev/null | tr '\n' ' ' || echo "")
+            echo "🎯 Manifest images: $MANIFEST_IMAGES"
+          fi
+          
+          # Step 2: Get current Docker images (excluding system images)  
+          CURRENT_IMAGES=$(docker image ls --format '{{.Repository}}:{{.Tag}} {{.Size}}' | grep -vE "(<none>|buildkit|qemu-user-static|alpine:latest|ubuntu:latest)" || true)
+          
+          echo "🐳 Available Docker images:"
+          echo "$CURRENT_IMAGES" | head -10
+          
+          # Step 3: Smart export strategy
+          exported_count=0
+          
+          if [ -n "$MANIFEST_IMAGES" ]; then
+            # Priority 1: Export images mentioned in manifest
+            echo "🎯 Exporting manifest-based images..."
+            for image_key in $MANIFEST_IMAGES;
+              do
+              echo "Looking for: $image_key"
+              matching_images=$(echo "$CURRENT_IMAGES" | grep -i "$image_key" | cut -d' ' -f1 || true)
+              
+              if [ -n "$matching_images" ]; then
+                echo "$matching_images" | while read docker_image;
+                  do
+                  if [ -n "$docker_image" ]; then
+                    safe_name=$(echo $docker_image | sed 's#[:/.]#_#g')
+                    size_info=$(echo "$CURRENT_IMAGES" | grep "^$docker_image " | awk '{print $2}' || echo "unknown")
+                    
+                    echo "   📦 Exporting: $docker_image ($size_info)"
+                    if docker save "$docker_image" -o "docker-cache-intel/${safe_name}.tar" 2>/dev/null; then
+                      tar_size=$(ls -lh "docker-cache-intel/${safe_name}.tar" | awk '{print $5}')
+                      echo "   ✅ Saved: $tar_size"
+                      exported_count=$((exported_count + 1))
+                    else
+                      echo "   ❌ Failed to export"
+                      rm -f "docker-cache-intel/${safe_name}.tar"
+                    fi
+                  fi
+                done
+              else
+                echo "   ⚠️  Not found in current images: $image_key"
+              fi
+            done
+          fi
+          
+          # Priority 2: If no manifest images found, export all relevant images
+          if [ "$exported_count" -eq 0 ]; then
+            echo "🔄 No manifest images exported, using fallback strategy..."
+            echo "$CURRENT_IMAGES" | while read image_line;
+              do
+              if [ -n "$image_line" ]; then
+                docker_image=$(echo "$image_line" | cut -d' ' -f1)
+                size_info=$(echo "$image_line" | cut -d' ' -f2)
+                safe_name=$(echo $docker_image | sed 's#[:/.]#_#g')
+                
+                echo "   📦 Exporting: $docker_image ($size_info)"
+                if docker save "$docker_image" -o "docker-cache-intel/${safe_name}.tar" 2>/dev/null; then
+                  tar_size=$(ls -lh "docker-cache-intel/${safe_name}.tar" | awk '{print $5}')
+                  echo "   ✅ Saved: $tar_size"
+                  exported_count=$((exported_count + 1))
+                else
+                  echo "   ❌ Failed"
+                  rm -f "docker-cache-intel/${safe_name}.tar"
+                fi
+              fi
+            done
+          fi
+          
+          # Final summary
+          if [ "$exported_count" -eq 0 ]; then
+            echo "No images cached" > docker-cache-intel/.empty
+            echo "❌ No images were cached!"
+          else
+            echo "=== INTEL CACHE SUMMARY ==="
+            echo "✅ Exported $exported_count image(s)"
+            ls -lah docker-cache-intel/*.tar 2>/dev/null | head -5
+            total_size=$(du -sh docker-cache-intel/ | cut -f1)
+            echo "📊 Total cache size: $total_size"
+          fi
+
+      - name: Upload Intel package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.intel_package }}
+          path: ./${{ env.intel_package }}
+
+      - name: Upload Docker cache
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-cache-intel
+          path: docker-cache-intel/
+
+  BuildUniversal:
+    name: Build S9PK (Universal)
+    runs-on: ubuntu-24.04
+    needs: [BuildARM, BuildIntel]
+    permissions:
+      contents: write
+    steps:
+      - name: Prepare StartOS SDK
+        uses: k0gen/sdk@v3-optimization
+
+      - name: Checkout services repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # CONDITIONAL: Setup BuildKit only if needed
+      - name: Set up Docker Buildx (custom builds only)
+        if: needs.BuildARM.outputs.has_dockerfile == 'true' || needs.BuildIntel.outputs.has_dockerfile == 'true'
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver-opts: |
+            image=moby/buildkit:buildx-stable-1
+            network=host
+
+      # Restore build dependencies from Intel build
+      - name: Restore Node.js dependencies (from Intel build)
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            node_modules
+            ~/.npm
+          key: ${{ runner.os }}-X64-node-modules-${{ hashFiles('**/package-lock.json', '**/yarn.lock') }}-v1
+          restore-keys: |
+            ${{ runner.os }}-X64-node-modules-
+
+      - name: Download Docker cache from ARM
+        uses: actions/download-artifact@v4
+        continue-on-error: true
+        with:
+          name: docker-cache-arm
+          path: docker-cache-arm/
+
+      - name: Import Docker images from both architectures
+        run: |
+          echo "📦 Importing Docker images from ARM build..."
+          echo "   Build type: ${{ needs.BuildARM.outputs.build_type }}"
+          
+          imported_count=0
+          
+          # Import ARM cache
+          if [ -d "docker-cache-arm" ] && [ -n "$(ls -A docker-cache-arm/*.tar 2>/dev/null)" ]; then
+            echo "Loading ARM Docker cache..."
+            for tar_file in docker-cache-arm/*.tar;
+              do
+              if [ -f "$tar_file" ]; then
+                image_name=$(basename "$tar_file" .tar)
+                echo "  Loading: $image_name"
+                if docker load -i "$tar_file" 2>/dev/null; then
+                  echo "  ✅ Loaded: $image_name"
+                  imported_count=$((imported_count + 1))
+                else
+                  echo "  ❌ Failed: $image_name"
+                fi
+              fi
+            done
+          else
+            echo "No ARM Docker cache found"
+          fi
+                    
+          echo "=== IMPORT SUMMARY ==="
+          echo "📊 Imported $imported_count image archive(s)"
+          echo "🐳 Available Docker images after import:"
+          docker image ls --format "table {{.Repository}}	{{.Tag}}	{{.Size}}" | head -15
+
+      - name: Build Universal package (Maximum Cache Optimization)
+        env:
+          DOCKER_BUILDKIT: 1
+          BUILDKIT_PROGRESS: plain
+        run: |
+          start-cli init
+          chmod 600 ~/.startos/developer.key.pem
+
+          echo "⚡ Building universal package with MAXIMUM cache optimization:"
+          echo "  Build type: ${{ needs.BuildARM.outputs.build_type }}"
+          echo "  Custom Dockerfile: ${{ needs.BuildARM.outputs.has_dockerfile }}"
+          echo "  Docker cache: ARM + Intel images available"
+          echo "  Build artifacts: Restored from Intel build"
+
+          # CONDITIONAL: Set BuildKit cache for custom builds
+          if [ "${{ needs.BuildARM.outputs.has_dockerfile }}" = "true" ]; then
+            export BUILDKIT_CACHE_FROM="type=gha,scope=arm-build type=gha,scope=intel-build"
+            export BUILDKIT_CACHE_TO="type=gha,mode=max,scope=universal-build"
+            echo "  Docker BuildKit cache: Importing from ARM + Intel build caches"
+          else
+            echo "  Docker strategy: Using imported pulled images (no BuildKit cache needed)"
+          fi
+
+          echo "🚀 Starting universal build..."
+          time RUST_LOG=debug RUST_BACKTRACE=1 make
+
+          # Find the universal package
+          UNIVERSAL_PACKAGE=$(ls *.s9pk | grep -v "_aarch64|_x86_64" | head -n1)
+
+          if [ -z "$UNIVERSAL_PACKAGE" ]; then
+            echo "❌ No universal package found!"
+            ls -la *.s9pk || echo "No .s9pk files found"
+            exit 1
+          fi
+
+          MANIFEST_JSON=$(start-cli s9pk inspect $UNIVERSAL_PACKAGE manifest)
           PACKAGE_ID=$(echo "$MANIFEST_JSON" | jq -r '.id')
           PACKAGE_TITLE=$(echo "$MANIFEST_JSON" | jq -r '.title')
           echo "package_id=${PACKAGE_ID}" >> $GITHUB_ENV
           echo "package_title=${PACKAGE_TITLE}" >> $GITHUB_ENV
-          printf "\n SHA256SUM: $(sha256sum ${PACKAGE_ID}.s9pk) \n"
-        shell: bash
+          echo "universal_package=${UNIVERSAL_PACKAGE}" >> $GITHUB_ENV
+          printf "\n ⚡ Universal SHA256: $(sha256sum ${UNIVERSAL_PACKAGE}) \n"
 
       - name: Generate sha256 checksum
         run: |
@@ -50,7 +587,7 @@ jobs:
         run: |
           echo "## What's Changed" > change-log.txt
           echo "" >> change-log.txt
-          RELEASE_NOTES=$(start-cli s9pk inspect *.s9pk manifest | jq -r '.releaseNotes') 
+          RELEASE_NOTES=$(start-cli s9pk inspect ${{ env.package_id }}.s9pk manifest | jq -r '.releaseNotes') 
           echo "${RELEASE_NOTES}" >> change-log.txt
           echo "## SHA256 Hash" >> change-log.txt
           echo '```' >> change-log.txt
