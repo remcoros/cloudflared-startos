@@ -1,13 +1,12 @@
 import { setupManifest } from '@start9labs/start-sdk'
 import { ImageSource } from '@start9labs/start-sdk/base/lib/osBindings'
 import { SDKImageInputSpec } from '@start9labs/start-sdk/base/lib/types/ManifestTypes'
+import { CLOUDFLARED_VERSION } from './install/versions'
 
 const BUILD = process.env.BUILD || ''
 
 const architectures =
   BUILD === 'x86_64' || BUILD === 'aarch64' ? [BUILD] : ['x86_64', 'aarch64']
-
-const CLOUDFLARED_IMAGE = 'cloudflare/cloudflared:2025.8.1'
 
 export const manifest = setupManifest({
   id: 'cloudflared',
@@ -32,7 +31,7 @@ export const manifest = setupManifest({
         dockerBuild: {
           dockerfile: 'Dockerfile',
           buildArgs: {
-            CLOUDFLARED_IMAGE: CLOUDFLARED_IMAGE,
+            CLOUDFLARED_IMAGE: 'cloudflare/cloudflared:' + CLOUDFLARED_VERSION,
           },
         },
       } as ImageSource,
