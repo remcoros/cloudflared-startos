@@ -1,4 +1,4 @@
-CLOUDFLARED_IMAGE := cloudflare/cloudflared:2025.5.0
+CLOUDFLARED_IMAGE := cloudflare/cloudflared:2025.9.1
 # sha256 hashes can be found in https://github.com/mikefarah/yq/releases/download/v4.40.7/checksums-bsd
 YQ_VERSION := 4.40.7
 YQ_SHA_AMD64 := 4f13ee9303a49f7e8f61e7d9c87402e07cc920ae8dfaaa8c10d7ea1b8f9f48ed
