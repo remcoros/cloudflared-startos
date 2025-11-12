@@ -97,7 +97,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
         run: |
-          start-cli init
+          start-cli init-key
           chmod 600 ~/.startos/developer.key.pem
 
           echo "🏗️ Building ARM package:"
@@ -319,7 +319,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
         run: |
-          start-cli init
+          start-cli init-key
           chmod 600 ~/.startos/developer.key.pem
 
           echo "🏗️ Building Intel package:"
@@ -540,7 +540,7 @@ jobs:
           DOCKER_BUILDKIT: 1
           BUILDKIT_PROGRESS: plain
         run: |
-          start-cli init
+          start-cli init-key
           chmod 600 ~/.startos/developer.key.pem
 
           echo "⚡ Building universal package with MAXIMUM cache optimization:"
