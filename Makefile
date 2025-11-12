@@ -1,9 +1,5 @@
-CLOUDFLARED_IMAGE := cloudflare/cloudflared:2025.10.0
-# sha256 hashes can be found in https://github.com/mikefarah/yq/releases/download/v4.40.7/checksums-bsd
-YQ_VERSION := 4.40.7
-YQ_SHA_AMD64 := 4f13ee9303a49f7e8f61e7d9c87402e07cc920ae8dfaaa8c10d7ea1b8f9f48ed
-YQ_SHA_ARM64 := a84f2c8f105b70cd348c3bf14048aeb1665c2e7314cbe9aaff15479f268b8412
-
+PACKAGE_ID := $(shell grep -o "id: '[^']*'" startos/manifest.ts | sed "s/id: '\([^']*\)'/\1/")
+INGREDIENTS := $(shell start-cli s9pk list-ingredients 2> /dev/null)
 CMD_ARCH_GOAL := $(filter aarch64 x86_64 arm x86, $(MAKECMDGOALS))
 ifeq ($(CMD_ARCH_GOAL),)
   BUILD := universal
