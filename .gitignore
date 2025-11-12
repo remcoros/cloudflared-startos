@@ -3,4 +3,6 @@
 .DS_Store
 scripts/*.js
 docker-images
-tmp
+node_modules
+javascript/*
+ncc-cache
