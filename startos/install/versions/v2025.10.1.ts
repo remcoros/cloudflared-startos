@@ -1,4 +1,4 @@
-import { VersionInfo, IMPOSSIBLE } from '@start9labs/start-sdk'
+import { VersionInfo } from '@start9labs/start-sdk'
 
 export const v2025_10_1 = VersionInfo.of({
   version: '2025.10.1:1.0',
