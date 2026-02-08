@@ -1,12 +1,13 @@
 import { store } from './fileModels/store.yaml'
 import { sdk } from './sdk'
+import { i18n } from './i18n'
 
-export const main = sdk.setupMain(async ({ effects, started }) => {
+export const main = sdk.setupMain(async ({ effects }) => {
   console.info('Starting cloudflared...')
 
   const conf = (await store.read().const(effects))!
 
-  return sdk.Daemons.of(effects, started).addDaemon('primary', {
+  return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,
       {
@@ -35,14 +36,14 @@ export const main = sdk.setupMain(async ({ effects, started }) => {
       },
     },
     ready: {
-      display: 'Cloudflare tunnel client',
+      display: i18n('Cloudflare tunnel client'),
       fn: () =>
         sdk.healthCheck.checkWebUrl(
           effects,
           'http://cloudflared.startos:20241/metrics',
           {
-            successMessage: 'Cloudflare tunnel client is running',
-            errorMessage: 'Cloudflare tunnel client is not running',
+            successMessage: i18n('Cloudflare tunnel client is running'),
+            errorMessage: i18n('Cloudflare tunnel client is not running'),
           },
         ),
     },

@@ -1,4 +1,5 @@
 import { matches, FileHelper, T } from '@start9labs/start-sdk'
+import { sdk } from '../sdk'
 const { object, string } = matches
 
 const shape = object({
@@ -8,7 +9,10 @@ const shape = object({
 export type StoreType = typeof shape._TYPE
 
 export const store = FileHelper.yaml(
-  '/media/startos/volumes/main/start9/config.yaml',
+  {
+    base: sdk.volumes.main,
+    subpath: '/start9/config.yaml',
+  },
   shape,
 )
 
