@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { certPem } from '../fileModels/tunnel.yaml'
+import { certPem } from '../fileModels/certPem'
 import { runCf } from '../cfRunner'
 
 const { InputSpec, Value, Variants } = sdk
@@ -125,32 +125,35 @@ export const selectTunnel = sdk.Action.withInput(
     const selection = (input.tunnel as { selection: string; value: { name?: string } })
     let tunnelId: string
     let tunnelName: string
-    let token: string
 
     if (selection.selection === 'new') {
       const name = selection.value.name?.trim()
       if (!name) throw new Error('Tunnel name is required.')
 
-      // Create the tunnel - response includes the token directly
+      // Create the tunnel - response includes id and name
       const stdout = await runCf(effects, ['tunnel', 'create', '--output', 'json', name])
       const created = JSON.parse(stdout.trim())
       tunnelId = created.id
       tunnelName = created.name
-      token = created.token
     } else {
       tunnelId = selection.selection
-      // Find name from the cached list
       const listOut = await runCf(effects, ['tunnel', 'list', '--output', 'json'])
       const tunnels = parseTunnelList(listOut)
       const found = tunnels.find((t) => t.id === tunnelId)
       tunnelName = found?.name ?? tunnelId
-      // Fetch token for existing tunnel
-      token = (await runCf(effects, ['tunnel', 'token', tunnelId])).trim()
     }
+
+    // Save credentials JSON to volume (delete first - cloudflared refuses to overwrite)
+    const credFile = `/root/.cloudflared/${tunnelId}.json`
+    const credSubpath = `/.cloudflared/${tunnelId}.json`
+    try {
+      const { unlink } = await import('node:fs/promises')
+      await unlink(sdk.volumes.main.subpath(credSubpath))
+    } catch { /* file didn't exist, that's fine */ }
+    await runCf(effects, ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId])
 
     await store.merge(effects, {
       tunnel: { id: tunnelId, name: tunnelName },
-      token,
     })
 
     console.info(`Tunnel set to: ${tunnelName} (${tunnelId})`)

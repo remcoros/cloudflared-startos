@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { certPem } from '../fileModels/tunnel.yaml'
+import { certPem } from '../fileModels/certPem'
 
 const LOGIN_URL_PATH = '/start9/login-url.txt'
 

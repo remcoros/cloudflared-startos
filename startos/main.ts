@@ -1,5 +1,4 @@
 import { store } from './fileModels/store.yaml'
-import { TUNNEL_CONFIG_PATH } from './fileModels/tunnel.yaml'
 import { sdk } from './sdk'
 import { i18n } from './i18n'
 
@@ -8,10 +7,12 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   const conf = (await store.read().const(effects))!
 
-  if (!conf.token) {
-    console.info('No tunnel token configured - waiting for tunnel selection')
+  if (!conf.tunnel) {
+    console.info('No tunnel configured - waiting for tunnel selection')
     return sdk.Daemons.of(effects)
   }
+
+  const credFile = `/root/.cloudflared/${conf.tunnel.id}.json`
 
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
@@ -42,13 +43,12 @@ export const main = sdk.setupMain(async ({ effects }) => {
         '--metrics',
         '0.0.0.0:20241',
         'tunnel',
-        '--config',
-        `/root/data${TUNNEL_CONFIG_PATH}`,
+        '--credentials-file',
+        credFile,
         'run',
+        conf.tunnel.id,
       ],
-      env: {
-        TUNNEL_TOKEN: conf.token,
-      },
+      env: {},
     },
     ready: {
       display: i18n('Cloudflare tunnel'),

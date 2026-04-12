@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { writeTunnelConfig } from '../fileModels/tunnel.yaml'
+import { pushIngressToApi, deleteDnsRecord } from '../cfApi'
 
 const { InputSpec, Value } = sdk
 
@@ -42,59 +42,26 @@ export const deletePublicHostname = sdk.Action.withInput(
   async ({ effects, input }) => {
     const { hostname } = input.urlPluginMetadata
 
-    // Remove from store
+    // Remove from store and push updated ingress to CF API
     await store.merge(effects, {
       ingress: { [hostname]: undefined } as any,
     })
-
-    // Regenerate config file
     const updated = await store.read().once()
-    await writeTunnelConfig(effects, updated ?? { ingress: {}, tunnel: null, zoneInfo: null })
+    if (updated?.zoneInfo && updated.tunnel) {
+      await pushIngressToApi(
+        updated.zoneInfo.accountId,
+        updated.tunnel.id,
+        updated.zoneInfo.apiToken,
+        updated.ingress ?? {},
+      )
+    }
 
-    // Delete the DNS CNAME record from Cloudflare if we have credentials
+    // Delete DNS record
     const zoneInfo = updated?.zoneInfo
     if (zoneInfo) {
-      try {
-        // Look up the DNS record ID by hostname
-        const listResp = await fetch(
-          `https://api.cloudflare.com/client/v4/zones/${zoneInfo.zoneId}/dns_records?name=${hostname}&type=CNAME`,
-          {
-            headers: {
-              Authorization: `Bearer ${zoneInfo.apiToken}`,
-              'Content-Type': 'application/json',
-            },
-          },
-        )
-        const listData = (await listResp.json()) as any
-        const records: Array<{ id: string }> = listData.result ?? []
-
-        for (const record of records) {
-          const delResp = await fetch(
-            `https://api.cloudflare.com/client/v4/zones/${zoneInfo.zoneId}/dns_records/${record.id}`,
-            {
-              method: 'DELETE',
-              headers: {
-                Authorization: `Bearer ${zoneInfo.apiToken}`,
-                'Content-Type': 'application/json',
-              },
-            },
-          )
-          const delData = (await delResp.json()) as any
-          if (delData.success) {
-            console.info(`DNS CNAME record deleted for ${hostname}`)
-          } else {
-            console.error(`Failed to delete DNS record for ${hostname}: ${JSON.stringify(delData.errors)}`)
-          }
-        }
-
-        if (records.length === 0) {
-          console.info(`No DNS CNAME record found for ${hostname} - nothing to delete`)
-        }
-      } catch (e) {
-        console.error(`Error deleting DNS record for ${hostname}: ${String(e)}`)
-      }
+      await deleteDnsRecord(zoneInfo.zoneId, hostname, zoneInfo.apiToken)
     } else {
-      console.info(`No zone credentials available - DNS record for ${hostname} must be deleted manually`)
+      console.info(`No zone credentials - delete DNS record for ${hostname} manually`)
     }
 
     // Restart the daemon so cloudflared picks up the change

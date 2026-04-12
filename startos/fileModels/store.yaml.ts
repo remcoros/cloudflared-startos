@@ -28,7 +28,6 @@ export const zoneInfoShape = z.object({
 export type ZoneInfo = z.infer<typeof zoneInfoShape>
 
 const shape = z.object({
-  token: z.string().catch(''),
   tunnel: tunnelInfoShape.nullable().catch(null),
   zoneInfo: zoneInfoShape.nullable().catch(null),
   ingress: z.record(z.string(), ingressEntryShape.nullable()).catch({}),
@@ -48,7 +47,6 @@ export const createDefaultStore = async (effects: T.Effects) => {
   const conf = await store.read().once()
   if (!conf) {
     await store.write(effects, {
-      token: '',
       tunnel: null,
       zoneInfo: null,
       ingress: {},

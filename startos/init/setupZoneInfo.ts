@@ -1,5 +1,5 @@
 import { sdk } from '../sdk'
-import { certPem } from '../fileModels/tunnel.yaml'
+import { certPem } from '../fileModels/certPem'
 import { store, ZoneInfo } from '../fileModels/store.yaml'
 
 /**

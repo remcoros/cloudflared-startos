@@ -1,5 +1,5 @@
 import { sdk } from '../sdk'
-import { certPem } from '../fileModels/tunnel.yaml'
+import { certPem } from '../fileModels/certPem'
 import { store } from '../fileModels/store.yaml'
 import { cloudflareLogin } from '../actions/cloudflareLogin'
 import { selectTunnel } from '../actions/selectTunnel'

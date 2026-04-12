@@ -1,9 +1,8 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { writeTunnelConfig } from '../fileModels/tunnel.yaml'
-import { decodeTunnelToken } from '../tunnelToken'
+import { pushIngressToApi } from '../cfApi'
 
-const { InputSpec, Value } = sdk
+const { InputSpec, Value, Variants } = sdk
 
 const CERT_PATH = '/root/.cloudflared/cert.pem'
 
@@ -14,21 +13,41 @@ const inputSpec = InputSpec.of({
     hostId: string
     internalPort: number
   }>(),
-  hostname: Value.text({
-    name: 'Public Hostname',
-    description:
-      'The public hostname to route to this service (e.g. myapp.example.com). Must be on a domain managed by Cloudflare.',
+  subdomain: Value.text({
+    name: 'Subdomain',
+    description: 'The subdomain to route to this service (e.g. myapp).',
     required: true,
-    default: '',
-    placeholder: 'myapp.example.com',
+    default: null,
+    placeholder: 'myapp',
     masked: false,
-    inputmode: 'url',
+    inputmode: 'text',
     patterns: [
       {
-        regex: '^[a-zA-Z0-9][a-zA-Z0-9\\-\\.]+\\.[a-zA-Z]{2,}$',
-        description: 'Must be a valid hostname (e.g. myapp.example.com)',
+        regex: '^[a-zA-Z0-9][a-zA-Z0-9\\-]*$',
+        description: 'Subdomain only, no dots (e.g. myapp)',
       },
     ],
+  }),
+  domain: Value.dynamicUnion(async ({ effects }) => {
+    const conf = await store.read().once()
+    const zones: Record<string, { name: string; spec: ReturnType<typeof InputSpec.of> }> = {}
+
+    if (conf?.zoneInfo?.zoneName) {
+      const key = conf.zoneInfo.zoneId
+      zones[key] = { name: conf.zoneInfo.zoneName, spec: InputSpec.of({}) }
+    }
+
+    // Fallback if no zone info yet
+    if (Object.keys(zones).length === 0) {
+      zones['manual'] = { name: 'Login to Cloudflare to see your domains', spec: InputSpec.of({}) }
+    }
+
+    return {
+      name: 'Domain',
+      default: Object.keys(zones)[0],
+      disabled: false,
+      variants: Variants.of(zones),
+    }
   }),
 })
 
@@ -45,32 +64,50 @@ export const addPublicHostname = sdk.Action.withInput(
   }),
 
   inputSpec,
+
+  // pre-fill subdomain from packageId
   async ({ effects, prefill }) => {
     const p = prefill as typeof inputSpec._PARTIAL
-    const conf = await store.read().once()
-    const zone = conf?.zoneInfo?.zoneName
     const suggestedHost = p?.urlPluginMetadata?.packageId
-    const suggested =
-      zone && suggestedHost && suggestedHost !== 'STARTOS'
-        ? `${suggestedHost}.${zone}`
-        : undefined
-    return suggested ? { hostname: suggested } : null
+    return suggestedHost && suggestedHost !== 'STARTOS'
+      ? { subdomain: suggestedHost }
+      : null
   },
 
   async ({ effects, input }) => {
     const { packageId, internalPort, interfaceId, hostId } = input.urlPluginMetadata
-    const hostname = input.hostname.trim().toLowerCase()
+    const subdomain = input.subdomain.trim().toLowerCase()
+    const domainSelection = (input.domain as { selection: string; value: {} })
+
+    const conf = await store.read().once()
+
+    // Resolve the domain name from the selection
+    const zoneName = conf?.zoneInfo?.zoneName
+    if (!zoneName) {
+      return {
+        version: '1' as const,
+        title: 'Not Logged In',
+        message: 'Login to Cloudflare first (run "Cloudflare Account" action), then add a public hostname.',
+        result: null,
+      }
+    }
+
+    const hostname = `${subdomain}.${zoneName}`
     const host = packageId === 'STARTOS' ? 'startos' : `${packageId}.startos`
     const service = `http://${host}:${internalPort}`
 
-    const conf = await store.read().once()
-    if (!conf?.token) {
-      throw new Error('No tunnel token configured. Run "Set Authentication Token" first.')
+    if (!conf?.tunnel) {
+      return {
+        version: '1' as const,
+        title: 'No Tunnel Configured',
+        message: 'Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).',
+        result: null,
+      }
     }
 
-    const credentials = decodeTunnelToken(conf.token)
+    const tunnelId = conf.tunnel.id
 
-    // Persist ingress entry and regenerate config
+    // Persist ingress entry and push to Cloudflare API
     await store.merge(effects, {
       ingress: {
         [hostname]: {
@@ -83,15 +120,23 @@ export const addPublicHostname = sdk.Action.withInput(
       },
     })
     const updated = await store.read().once()
-    await writeTunnelConfig(effects, updated ?? { ingress: {}, tunnel: null, zoneInfo: null })
+    if (conf.zoneInfo) {
+      await pushIngressToApi(
+        conf.zoneInfo.accountId,
+        tunnelId,
+        conf.zoneInfo.apiToken,
+        updated?.ingress ?? {},
+      )
+    }
 
-    // Create DNS route automatically if logged in, otherwise log manual instructions
+    // Create DNS route automatically if logged in
     let certExists = false
     try {
       await sdk.volumes.main.readFile('/.cloudflared/cert.pem')
       certExists = true
     } catch {}
 
+    let dnsCreated = false
     if (certExists) {
       await sdk.SubContainer.withTemp(
         effects,
@@ -106,7 +151,7 @@ export const addPublicHostname = sdk.Action.withInput(
               '/usr/local/bin/cloudflared', '--no-autoupdate',
               `--origincert=${CERT_PATH}`,
               'tunnel', 'route', 'dns', '--overwrite-dns',
-              credentials.TunnelID, hostname,
+              tunnelId, hostname,
             ],
             {}, 30_000,
           )
@@ -114,17 +159,34 @@ export const addPublicHostname = sdk.Action.withInput(
           if (result.stderr) console.info(result.stderr)
           if (result.exitCode !== 0) {
             console.error(
-              `DNS route creation failed. Add CNAME manually: ${hostname} -> ${credentials.TunnelID}.cfargotunnel.com`,
+              `DNS route creation failed. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
             )
+          } else {
+            dnsCreated = true
           }
         },
       )
     } else {
       console.info(
-        `Not logged in - add CNAME manually: ${hostname} -> ${credentials.TunnelID}.cfargotunnel.com`,
+        `Not logged in - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
       )
     }
 
     await effects.restart()
+
+    return {
+      version: '1' as const,
+      title: 'Public Hostname Added',
+      message: dnsCreated
+        ? `${hostname} is now routed to this service. DNS record created automatically.`
+        : `${hostname} is now routed to this service. Add a CNAME record manually: ${hostname} -> ${tunnelId}.cfargotunnel.com (proxied).`,
+      result: {
+        type: 'single' as const,
+        value: `https://${hostname}`,
+        copyable: true,
+        qr: false,
+        masked: false,
+      },
+    }
   },
 )
