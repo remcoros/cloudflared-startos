@@ -3,9 +3,9 @@ import { LangDict } from './default'
 export default {
   es_ES: {
     // main.ts
-    1: 'Cliente del túnel Cloudflare',
-    2: 'El cliente del túnel Cloudflare está ejecutándose',
-    3: 'El cliente del túnel Cloudflare no está ejecutándose',
+    1: 'Túnel Cloudflare',
+    2: 'El túnel Cloudflare está ejecutándose',
+    3: 'El túnel Cloudflare no está ejecutándose',
 
     // interfaces.ts
     100: 'Métricas',
@@ -13,9 +13,9 @@ export default {
   },
   de_DE: {
     // main.ts
-    1: 'Cloudflare-Tunnel-Client',
-    2: 'Cloudflare-Tunnel-Client läuft',
-    3: 'Cloudflare-Tunnel-Client läuft nicht',
+    1: 'Cloudflare-Tunnel',
+    2: 'Cloudflare-Tunnel läuft',
+    3: 'Cloudflare-Tunnel läuft nicht',
 
     // interfaces.ts
     100: 'Metriken',
@@ -23,9 +23,9 @@ export default {
   },
   pl_PL: {
     // main.ts
-    1: 'Klient tunelu Cloudflare',
-    2: 'Klient tunelu Cloudflare jest uruchomiony',
-    3: 'Klient tunelu Cloudflare nie jest uruchomiony',
+    1: 'Tunel Cloudflare',
+    2: 'Tunel Cloudflare jest uruchomiony',
+    3: 'Tunel Cloudflare nie jest uruchomiony',
 
     // interfaces.ts
     100: 'Metryki',
@@ -33,7 +33,7 @@ export default {
   },
   fr_FR: {
     // main.ts
-    1: 'Client de tunnel Cloudflare',
+    1: 'Tunnel Cloudflare',
     2: 'Le client de tunnel Cloudflare est en cours d\'exécution',
     3: 'Le client de tunnel Cloudflare n\'est pas en cours d\'exécution',
 

@@ -61,9 +61,12 @@ export const selectTunnel = sdk.Action.withInput(
       }
     }
     const conf = await store.read().const(effects)
-    const current = conf?.tunnel?.name ?? 'none'
+    const current = conf?.tunnel?.name
+    const nameLabel = current
+      ? `Cloudflare Tunnel: ${current}`
+      : 'Cloudflare Tunnel: Not selected'
     return {
-      name: `Select Tunnel (currently: ${current})`,
+      name: nameLabel,
       description:
         'Choose which Cloudflare tunnel this server runs. You can select an existing tunnel or create a new one.',
       warning: null,
@@ -122,28 +125,28 @@ export const selectTunnel = sdk.Action.withInput(
     const selection = (input.tunnel as { selection: string; value: { name?: string } })
     let tunnelId: string
     let tunnelName: string
+    let token: string
 
     if (selection.selection === 'new') {
       const name = selection.value.name?.trim()
       if (!name) throw new Error('Tunnel name is required.')
 
-      // Create the tunnel
+      // Create the tunnel - response includes the token directly
       const stdout = await runCf(effects, ['tunnel', 'create', '--output', 'json', name])
       const created = JSON.parse(stdout.trim())
       tunnelId = created.id
       tunnelName = created.name
-      console.info(`Created tunnel: ${tunnelName} (${tunnelId})`)
+      token = created.token
     } else {
       tunnelId = selection.selection
-      // Find name from the list
+      // Find name from the cached list
       const listOut = await runCf(effects, ['tunnel', 'list', '--output', 'json'])
       const tunnels = parseTunnelList(listOut)
       const found = tunnels.find((t) => t.id === tunnelId)
       tunnelName = found?.name ?? tunnelId
+      // Fetch token for existing tunnel
+      token = (await runCf(effects, ['tunnel', 'token', tunnelId])).trim()
     }
-
-    // Fetch the token for this tunnel and store it
-    const token = (await runCf(effects, ['tunnel', 'token', tunnelId])).trim()
 
     await store.merge(effects, {
       tunnel: { id: tunnelId, name: tunnelName },

@@ -83,7 +83,7 @@ export const addPublicHostname = sdk.Action.withInput(
       },
     })
     const updated = await store.read().once()
-    await writeTunnelConfig(effects, updated?.ingress ?? {})
+    await writeTunnelConfig(effects, updated ?? { ingress: {}, tunnel: null, zoneInfo: null })
 
     // Create DNS route automatically if logged in, otherwise log manual instructions
     let certExists = false
@@ -114,14 +114,14 @@ export const addPublicHostname = sdk.Action.withInput(
           if (result.stderr) console.info(result.stderr)
           if (result.exitCode !== 0) {
             console.error(
-              `DNS route creation failed. Add CNAME manually: ${hostname} → ${credentials.TunnelID}.cfargotunnel.com`,
+              `DNS route creation failed. Add CNAME manually: ${hostname} -> ${credentials.TunnelID}.cfargotunnel.com`,
             )
           }
         },
       )
     } else {
       console.info(
-        `Not logged in — add CNAME manually: ${hostname} → ${credentials.TunnelID}.cfargotunnel.com`,
+        `Not logged in - add CNAME manually: ${hostname} -> ${credentials.TunnelID}.cfargotunnel.com`,
       )
     }
 

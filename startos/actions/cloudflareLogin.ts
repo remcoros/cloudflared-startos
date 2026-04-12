@@ -1,4 +1,5 @@
 import { sdk } from '../sdk'
+import { store } from '../fileModels/store.yaml'
 import { certPem } from '../fileModels/tunnel.yaml'
 
 const LOGIN_URL_PATH = '/start9/login-url.txt'
@@ -22,11 +23,16 @@ export const cloudflareLogin = sdk.Action.withoutInput(
 
   async ({ effects }) => {
     const loggedIn = !!(await certPem.read().const(effects))
+    const conf = await store.read().const(effects)
+    const zoneName = conf?.zoneInfo?.zoneName
+    const nameLabel = loggedIn
+      ? `Cloudflare Account: Logged in${zoneName ? ` (${zoneName})` : ''}`
+      : 'Cloudflare Account: Not logged in'
     return {
-      name: `Login to Cloudflare (currently ${loggedIn ? '' : 'not '}logged in)`,
+      name: nameLabel,
       description:
         'Authenticates with your Cloudflare account so DNS routes can be created automatically. ' +
-        'Returns an authorization URL — visit it in your browser to complete login.',
+        'Returns an authorization URL - visit it in your browser to complete login.',
       warning: null,
       allowedStatuses: 'any',
       group: 'Configuration',
@@ -38,7 +44,7 @@ export const cloudflareLogin = sdk.Action.withoutInput(
     // Clear any stale URL file before starting
     await sdk.volumes.main.writeFile(LOGIN_URL_PATH, 'pending').catch(() => {})
 
-    // Fire and forget — cf-login.sh starts cloudflared login, extracts the auth URL,
+    // Fire and forget - cf-login.sh starts cloudflared login, extracts the auth URL,
     // writes it to the volume, then waits up to 10 min for auth to complete
     sdk.SubContainer.withTemp(effects, { imageId: 'main' }, mounts, 'cf-login',
       async (sub) => {

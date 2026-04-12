@@ -10,7 +10,7 @@ import { store, ZoneInfo } from '../fileModels/store.yaml'
 export const setupZoneInfo = sdk.setupOnInit(async (effects) => {
   const cert = await certPem.read().const(effects)
   if (!cert) {
-    // Not logged in — clear any stale zone info
+    // Not logged in - clear any stale zone info
     const conf = await store.read().once()
     if (conf?.zoneInfo) {
       await store.merge(effects, { zoneInfo: null })

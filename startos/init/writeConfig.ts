@@ -8,5 +8,5 @@ import { writeTunnelConfig } from '../fileModels/tunnel.yaml'
  */
 export const writeConfig = sdk.setupOnInit(async (effects) => {
   const conf = await store.read().once()
-  await writeTunnelConfig(effects, conf?.ingress ?? {})
+  await writeTunnelConfig(effects, conf ?? { ingress: {}, tunnel: null, zoneInfo: null })
 })

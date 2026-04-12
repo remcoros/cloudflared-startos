@@ -2,9 +2,9 @@ export const DEFAULT_LANG = 'en_US'
 
 const dict = {
   // main.ts
-  'Cloudflare tunnel client': 1,
-  'Cloudflare tunnel client is running': 2,
-  'Cloudflare tunnel client is not running': 3,
+  'Cloudflare tunnel': 1,
+  'Cloudflare tunnel is running': 2,
+  'Cloudflare tunnel is not running': 3,
 
   // interfaces.ts
   'Metrics': 100,

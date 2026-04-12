@@ -9,7 +9,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const conf = (await store.read().const(effects))!
 
   if (!conf.token) {
-    console.info('No tunnel token configured — waiting for tunnel selection')
+    console.info('No tunnel token configured - waiting for tunnel selection')
     return sdk.Daemons.of(effects)
   }
 
@@ -51,14 +51,14 @@ export const main = sdk.setupMain(async ({ effects }) => {
       },
     },
     ready: {
-      display: i18n('Cloudflare tunnel client'),
+      display: i18n('Cloudflare tunnel'),
       fn: () =>
         sdk.healthCheck.checkWebUrl(
           effects,
           'http://cloudflared.startos:20241/metrics',
           {
-            successMessage: i18n('Cloudflare tunnel client is running'),
-            errorMessage: i18n('Cloudflare tunnel client is not running'),
+            successMessage: i18n('Cloudflare tunnel is running'),
+            errorMessage: i18n('Cloudflare tunnel is not running'),
           },
         ),
     },
