@@ -26,89 +26,133 @@ Upstream repo: <https://github.com/cloudflare/cloudflared>
 - [Backups and Restore](#backups-and-restore)
 - [Health Checks](#health-checks)
 - [Dependencies](#dependencies)
+- [What Is Unchanged from Upstream](#what-is-unchanged-from-upstream)
 - [Limitations and Differences](#limitations-and-differences)
+- [Quick Reference for AI Consumers](#quick-reference-for-ai-consumers)
 
 ---
 
 ## Image and Container Runtime
 
-- Base image: `cloudflare/cloudflared:<version>` copied into `debian:12-slim`
+- Base image: `cloudflare/cloudflared:2026.3.0` copied into `debian:12-slim`
 - Architectures: `x86_64`, `aarch64` (aarch64 emulated if missing)
-- Entrypoint: `cloudflared tunnel --config /root/data/start9/tunnel.yaml run`
+- Entrypoint: `cloudflared tunnel --credentials-file /root/.cloudflared/<tunnel-id>.json run <tunnel-id>`
 - Autoupdate disabled via `--no-autoupdate`
 
 ## Volume and Data Layout
 
-All persistent data is stored in the `main` volume, mounted at `/root/data`:
+All persistent data is stored in the `main` volume:
 
 | Path | Contents |
 |---|---|
-| `/root/data/start9/config.yaml` | Package store (token, tunnel info, zone info, ingress map) |
-| `/root/data/start9/tunnel.yaml` | Generated cloudflared ingress config (written on every start) |
-| `/root/data/start9/login-url.txt` | Temporary: Cloudflare auth URL during login flow |
-| `/root/data/.cloudflared/cert.pem` | Cloudflare origin certificate (written by login) |
+| `/root/data/start9/config.yaml` | Package store with selected tunnel, logged-in DNS zones, and managed routes |
+| `/root/data/start9/login-url.txt` | Temporary Cloudflare authorization URL during login flow |
+| `/root/data/.cloudflared/zone-<zone-id>.pem` | Zone-specific Cloudflare origin certificate |
+| `/root/data/.cloudflared/<tunnel-id>.json` | Tunnel credentials file used to run cloudflared |
 
 ## Installation and First-Run Flow
 
-1. **Login to Cloudflare** - Run the "Login to Cloudflare" action. A Cloudflare authorization URL is returned. Visit it in your browser and select the DNS zone you want to use.
-2. **Select Tunnel** - Run the "Select Tunnel" action. Choose an existing tunnel or create a new one. The tunnel token is retrieved and stored automatically.
-3. The service starts and begins proxying traffic through your tunnel.
+1. **Login to Cloudflare** by running the **Login to Cloudflare** action.
+2. Open the returned authorization URL and approve access for one DNS zone.
+3. Repeat the login action if you want this package to manage additional DNS zones.
+4. Run **Select Tunnel** to choose an existing tunnel or create a new one.
+5. The package stores the tunnel credentials automatically and starts cloudflared.
 
-No manual token management is required.
+No manual token or credentials-file management is required.
 
 ## Configuration Management
 
-- The tunnel token is retrieved automatically via `cloudflared tunnel token` after tunnel selection - no manual token input needed.
-- Ingress rules are stored in `start9/config.yaml` and written to `start9/tunnel.yaml` before each start.
-- Dashboard-configured public hostnames are fetched from the Cloudflare API on each start and merged with locally-configured ones. Local rules take precedence if a hostname appears in both.
-- Cloudflare credentials (`cert.pem`) are stored in the `main` volume at `.cloudflared/cert.pem`.
+- The package stores the selected tunnel, logged-in DNS zones, and managed routes in `start9/config.yaml`.
+- Tunnel ingress is managed through the Cloudflare API.
+- After selecting a tunnel, the package retrieves the credentials file automatically with `cloudflared tunnel token --cred-file ...`.
+- DNS record management uses the zone-specific origin certificate for the selected zone.
+- If hostnames already exist on the tunnel in Cloudflare, use **Import Public Hostnames** before making further edits in StartOS so those routes are brought into the package store.
 
 ## Network Access and Interfaces
 
-- **Metrics** - Prometheus metrics endpoint at `http://cloudflared.startos:20241/metrics` (internal only, not exposed publicly).
-- All public traffic is routed inbound through the Cloudflare edge. No inbound ports need to be opened on your router.
+- **Metrics** - Prometheus metrics endpoint at `http://cloudflared.startos:20241/metrics` (internal only)
+- All public traffic is proxied through the Cloudflare edge. No inbound ports need to be opened on your router.
 
 ## Actions
 
 | Action | When available | Purpose |
 |---|---|---|
-| Login to Cloudflare | Always | Start the Cloudflare login flow; returns an authorization URL to visit in your browser |
-| Select Tunnel | When logged in | Choose an existing tunnel or create a new one |
+| Login to Cloudflare / Add DNS Zone | Always | Start the Cloudflare login flow and authorize one DNS zone at a time |
+| Select Tunnel | When at least one zone is configured | Choose an existing tunnel or create a new one |
+| Remove DNS Zone | When zones exist | Remove a DNS zone from this package without deleting existing Cloudflare records |
+| Import Public Hostnames | Always | Import existing Cloudflare tunnel hostnames into the StartOS-managed route list |
+| Managed Public Routes | Always | Show the selected tunnel, managed DNS zones, and application routes |
 
 ## URL Plugin
 
-Cloudflare Tunnel registers as a `url-v0` URL plugin. This means any other installed service can add a public Cloudflare hostname directly from its URL list.
+Cloudflare Tunnel registers as a `url-v0` URL plugin. Any other installed service can add a public Cloudflare hostname directly from its StartOS URL list.
 
 **Adding a hostname:**
 - Open any service → URLs → Add URL → select Cloudflare Tunnel
-- Enter a hostname (e.g. `myapp.example.com`) - pre-filled with `packageid.yourdomain.com` if a zone is configured
-- If logged in, a DNS CNAME record is created automatically pointing to your tunnel
-- If not logged in, create the CNAME manually: `hostname → <tunnelID>.cfargotunnel.com` (proxied)
+- Enter a subdomain and choose one of the logged-in DNS zones
+- The package updates the Cloudflare tunnel ingress configuration automatically
+- It also tries to create the DNS CNAME automatically
+- If the DNS step fails, the route is still added and the action returns the manual fallback: `hostname → <tunnelID>.cfargotunnel.com` (proxied)
 
 **Removing a hostname:**
 - Open the service → URLs → remove the Cloudflare URL
-- The ingress rule and DNS CNAME record are removed automatically
+- The package removes the ingress rule from the tunnel configuration
+- It also tries to delete the matching DNS record and returns a warning if manual cleanup is still needed
 
-**Dashboard hostnames:**
-- Public hostnames configured in the Cloudflare Zero Trust dashboard are automatically merged into the tunnel config on each start. They do not appear in the StartOS URL list but work normally.
+**Importing existing dashboard routes:**
+- If routes already exist on the tunnel in Cloudflare, run **Import Public Hostnames**
+- Matching routes are added to the package store so StartOS can manage and display them
 
 ## Backups and Restore
 
-The entire `main` volume is backed up, including `cert.pem`, the tunnel token, zone info, and all ingress entries. After restore, the service starts immediately with all previous configuration intact.
+The entire `main` volume is backed up, including zone certificates, tunnel credentials, selected tunnel info, DNS zone info, and managed ingress entries. After restore, the service can resume using the same tunnel and managed routes.
 
 ## Health Checks
 
-- **Cloudflare tunnel** - polls `http://cloudflared.startos:20241/metrics` every 30 seconds
-- Service is considered healthy when the metrics endpoint responds successfully
+- **Cloudflare tunnel** - polls `http://cloudflared.startos:20241/metrics`
+- The service is considered healthy when the metrics endpoint responds successfully
 
 ## Dependencies
 
 None.
 
+## What Is Unchanged from Upstream
+
+- Cloudflare Tunnel still uses your existing Cloudflare account, Zero Trust tunnel model, and DNS zones.
+- Advanced tunnel settings that are not described here should still be managed exactly as documented in the upstream Cloudflare documentation.
+
 ## Limitations and Differences
 
-1. **Single DNS zone** - logging in authorizes one Cloudflare DNS zone. Hostnames on other zones can still be added but DNS records must be created manually for those zones.
-2. **No tunnel management UI** - tunnels are managed via the StartOS actions interface, not a web UI. For advanced tunnel configuration, use the Cloudflare Zero Trust dashboard.
-3. **Local config takes precedence over dashboard** - if a hostname is configured both locally and in the dashboard, the local entry wins. Dashboard-only entries are merged in automatically.
-4. **Autoupdate disabled** - `--no-autoupdate` is set; updates are delivered via new package versions.
-5. **Metrics endpoint is internal only** - the Prometheus metrics endpoint is not proxied through the tunnel.
+1. **One selected tunnel per package instance** - this package runs one cloudflared tunnel at a time.
+2. **No tunnel management UI** - tunnels are selected or created through StartOS actions, not a web UI. For advanced tunnel settings, use the Cloudflare Zero Trust dashboard.
+3. **Import before editing dashboard-managed routes** - if routes already exist in the Cloudflare dashboard, import them into StartOS first so later edits here do not overwrite unknown entries.
+4. **DNS automation can still need manual fallback** - if a DNS record already exists or Cloudflare rejects the change, the package returns the manual CNAME fallback instead of silently failing.
+5. **Autoupdate disabled** - `--no-autoupdate` is set; updates are delivered via new package versions.
+6. **Metrics endpoint is internal only** - the Prometheus metrics endpoint is not proxied through the tunnel.
+
+---
+
+## Quick Reference for AI Consumers
+
+```yaml
+package_id: cloudflared
+upstream_version: 2026.3.0
+image: cloudflare/cloudflared:2026.3.0
+architectures: [x86_64, aarch64]
+volumes:
+  main:
+    - /root/data/start9/config.yaml
+    - /root/data/start9/login-url.txt
+    - /root/data/.cloudflared/zone-<zone-id>.pem
+    - /root/data/.cloudflared/<tunnel-id>.json
+ports:
+  metrics: 20241
+dependencies: none
+startos_managed_env_vars: []
+actions:
+  - cloudflare-login
+  - select-tunnel
+  - remove-zone
+  - import-public-hostnames
+  - managed-overview
+```

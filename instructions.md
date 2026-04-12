@@ -3,31 +3,32 @@
 ```
 ----- WARNING -----
 
-This is for advanced users who know what they are doing.
-
-Exposing your server on the internet brings a lot of responsibility and can expose your server/service to all kind of attacks.
-
-Don't be reckless!
+Publishing services on the public internet requires care.
+Use Cloudflare Tunnel only if you understand the security implications of exposing a service publicly.
 
 ----- WARNING -----
 ```
 
-Here are some basic instructions. We won't go into detail because this should NOT be newb friendly. You have to REALLY KNOW WHAT YOU ARE DOING!!
+## Quick setup
 
-* You need a cloudflare account
-* Setup a website, with domain, dns and flexible ssl
-* Create a tunnel in cloudflare 'Zero Trust'
-* Copy the generated token and paste it in StartOS Cloudflare Tunnel service configuration
-* Start the Cloudflare Tunnel service in StartOS
-* In cloudflare tunnel dashboard, add public hostnames and route them directly to a StartOS service. For example: 
+1. Install the Cloudflare Tunnel package on StartOS.
+2. Run **Login to Cloudflare** and open the returned authorization URL.
+3. Approve access for the DNS zone you want to manage.
+4. Run **Select Tunnel** and either choose an existing tunnel or create a new one.
+5. Open another service on StartOS, go to **URLs**, and add a Cloudflare Tunnel URL.
+6. Pick a subdomain and one of the logged-in DNS zones.
 
+The package will:
+- update the Cloudflare tunnel ingress configuration automatically
+- try to create the DNS record automatically
+- return a manual CNAME fallback if Cloudflare rejects the DNS change
+
+Manual fallback CNAME format:
+
+```text
+<hostname> -> <tunnel-id>.cfargotunnel.com
 ```
-Subdomain: btcpay
-Domain: mydomain.xyz
-Path: (empty)
 
-Service Type: HTTP
-URL: btcpayserver.embassy:80
-```
+Use the **Import Public Hostnames** action if the tunnel already has hostnames configured in Cloudflare and you want StartOS to manage and display them too.
 
-If you have setup the website, domain (mydomain.xyz), DNS, a SSL certificate and tunnel correctly, the BTCPay server is now exposed through a cloudflare tunnel on 'https://btcpay.mydomain.xyz'
+Use **Managed Public Routes** to see the currently selected tunnel, DNS zones, and managed application routes in one place.
