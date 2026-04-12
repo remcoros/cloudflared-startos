@@ -33,17 +33,18 @@ function parseTunnelList(stdout: string): Array<{ id: string; name: string }> {
   return []
 }
 
-const newTunnelSpec = InputSpec.of({
-  name: Value.text({
-    name: 'Tunnel Name',
-    description: 'A name for your new Cloudflare tunnel.',
-    required: true,
-    default: null,
-    placeholder: 'my-server',
-    masked: false,
-    inputmode: 'text',
-  }),
-})
+const newTunnelSpec = (serverName: string | null) =>
+  InputSpec.of({
+    name: Value.text({
+      name: 'Tunnel Name',
+      description: 'A name for your new Cloudflare tunnel.',
+      required: true,
+      default: serverName,
+      placeholder: 'my-server',
+      masked: false,
+      inputmode: 'text',
+    }),
+  })
 
 export const selectTunnel = sdk.Action.withInput(
   'select-tunnel',
@@ -87,7 +88,20 @@ export const selectTunnel = sdk.Action.withInput(
         console.error(`Failed to list tunnels: ${String(e)}`)
       }
 
-      const variants: Record<string, { name: string; spec: typeof newTunnelSpec | ReturnType<typeof InputSpec.of> }> = {}
+      // Infer server name from mDNS for new tunnel default
+      let serverName: string | null = null
+      try {
+        const mdnsUrl = await sdk.serviceInterface
+          .getOwn(effects!, 'metrics', (iface) =>
+            iface?.addressInfo?.nonLocal.filter({ kind: 'mdns' })?.format()[0],
+          )
+          .once()
+        if (mdnsUrl) {
+          serverName = new URL(mdnsUrl).hostname.replace(/\.local$/, '')
+        }
+      } catch {}
+
+      const variants: Record<string, { name: string; spec: ReturnType<typeof InputSpec.of> }> = {}
 
       for (const t of tunnels) {
         variants[t.id] = {
@@ -99,7 +113,7 @@ export const selectTunnel = sdk.Action.withInput(
       // 'Create new tunnel' always at the bottom
       variants['new'] = {
         name: 'Create new tunnel',
-        spec: newTunnelSpec,
+        spec: newTunnelSpec(serverName),
       }
 
       return {
@@ -117,7 +131,7 @@ export const selectTunnel = sdk.Action.withInput(
     return {
       tunnel: conf?.tunnel
         ? { selection: conf.tunnel.id, value: {} }
-        : { selection: 'new', value: { name: '' } },
+        : { selection: 'new', value: {} },
     }
   },
 
