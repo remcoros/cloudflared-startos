@@ -1,4 +1,5 @@
 import { store } from './fileModels/store.yaml'
+import { TUNNEL_CONFIG_PATH } from './fileModels/tunnel.yaml'
 import { sdk } from './sdk'
 import { i18n } from './i18n'
 
@@ -13,12 +14,19 @@ export const main = sdk.setupMain(async ({ effects }) => {
       {
         imageId: 'main',
       },
-      sdk.Mounts.of().mountVolume({
-        volumeId: 'main',
-        subpath: null,
-        mountpoint: '/root/data',
-        readonly: false,
-      }),
+      sdk.Mounts.of()
+        .mountVolume({
+          volumeId: 'main',
+          subpath: null,
+          mountpoint: '/root/data',
+          readonly: false,
+        })
+        .mountVolume({
+          volumeId: 'main',
+          subpath: '.cloudflared',
+          mountpoint: '/root/.cloudflared',
+          readonly: true,
+        }),
       'main',
     ),
     exec: {
@@ -29,6 +37,8 @@ export const main = sdk.setupMain(async ({ effects }) => {
         '--metrics',
         '0.0.0.0:20241',
         'tunnel',
+        '--config',
+        `/root/data${TUNNEL_CONFIG_PATH}`,
         'run',
       ],
       env: {
