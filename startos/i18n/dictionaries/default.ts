@@ -53,6 +53,31 @@ const dict = {
   'Delete Public Hostname': 250,
   'Remove a Cloudflare public hostname route': 251,
   'This will remove this hostname from your Cloudflare tunnel and delete the DNS record from Cloudflare.': 252,
+
+  // actions/managedOverview.ts
+  'Managed Public Routes': 270,
+  'View the Cloudflare DNS zones, tunnel, and application routes currently managed by this package.': 271,
+  'Show the DNS zones, tunnel, and public hostnames currently managed by this package.': 272,
+  'Cloudflare Tunnel': 273,
+  'No tunnel selected': 274,
+  'Tunnel Name': 275,
+  'Tunnel ID': 276,
+  'Account ID': 277,
+  'Configured DNS Zones': 278,
+  'No DNS zones configured': 279,
+  'Domain Name': 280,
+  'Zone ID': 281,
+  'Managed Hostnames': 282,
+  'Managed Application Routes': 283,
+  'No public hostnames are currently managed': 284,
+  'Public URL': 285,
+  Package: 286,
+  'StartOS Server': 287,
+  'DNS Zone': 288,
+  'Interface ID': 289,
+  'Internal Target': 290,
+  'Application Routes': 291,
+  'No application routes are currently managed in this zone': 292,
 } as const
 
 /**

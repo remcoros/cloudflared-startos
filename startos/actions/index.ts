@@ -5,6 +5,7 @@ import { removeZone } from './removeZone'
 import { addPublicHostname } from './addPublicHostname'
 import { deletePublicHostname } from './deletePublicHostname'
 import { importPublicHostnames } from './importPublicHostnames'
+import { managedOverview } from './managedOverview'
 
 export const actions = sdk.Actions.of()
   .addAction(cloudflareLogin)
@@ -13,3 +14,4 @@ export const actions = sdk.Actions.of()
   .addAction(addPublicHostname)
   .addAction(deletePublicHostname)
   .addAction(importPublicHostnames)
+  .addAction(managedOverview)
