@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { fetchIngressFromApi } from '../cfApi'
+import { fetchIngressFromApi, summarizeCloudflareError } from '../cfApi'
 import { i18n } from '../i18n'
 
 /**
@@ -75,11 +75,23 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     )
 
     // Fetch all ingress rules from Cloudflare
-    const cfRules = await fetchIngressFromApi(
-      firstZone.accountId,
-      conf.tunnel.id,
-      firstZone.apiToken,
-    )
+    let cfRules: Array<{ hostname: string; service: string }>
+    try {
+      cfRules = await fetchIngressFromApi(
+        firstZone.accountId,
+        conf.tunnel.id,
+        firstZone.apiToken,
+      )
+    } catch (error) {
+      const summary = summarizeCloudflareError(error)
+      console.error(`Failed to import public hostnames from Cloudflare: ${summary}`)
+      return {
+        version: '1' as const,
+        title: 'Cloudflare Import Failed',
+        message: `Could not read the Cloudflare tunnel configuration. ${summary}`,
+        result: null,
+      }
+    }
 
     // Only consider rules not already tracked locally
     const newRules = cfRules.filter((r) => !existingHostnames.has(r.hostname))

@@ -1,10 +1,29 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { pushIngressToApi } from '../cfApi'
+import { pushIngressToApi, summarizeCloudflareError } from '../cfApi'
 import { zoneCertSubpath } from '../fileModels/certPem'
 import { i18n } from '../i18n'
 
 const { InputSpec, Value, Variants } = sdk
+
+function summarizeDnsRouteFailure(output: string): string {
+  const trimmed = output.trim()
+  const lower = trimmed.toLowerCase()
+
+  if (!trimmed) return 'Cloudflare did not return a detailed DNS error.'
+  if (lower.includes('already exists')) {
+    return 'Cloudflare reports that a DNS record for this hostname already exists.'
+  }
+  if (lower.includes('authentication') || lower.includes('unauthorized')) {
+    return 'Cloudflare rejected the DNS update because authentication failed.'
+  }
+  if (lower.includes('not found')) {
+    return 'Cloudflare could not find the requested tunnel or DNS zone.'
+  }
+
+  const lastLine = trimmed.split('\n').filter(Boolean).at(-1) ?? trimmed
+  return lastLine.length > 180 ? `${lastLine.slice(0, 177)}...` : lastLine
+}
 
 const inputSpec = InputSpec.of({
   urlPluginMetadata: Value.hidden<{
@@ -129,7 +148,18 @@ export const addPublicHostname = sdk.Action.withInput(
     }
 
     // Push to Cloudflare first so local state only changes after the remote config is updated.
-    await pushIngressToApi(zone.accountId, tunnelId, zone.apiToken, nextIngress)
+    try {
+      await pushIngressToApi(zone.accountId, tunnelId, zone.apiToken, nextIngress)
+    } catch (error) {
+      const summary = summarizeCloudflareError(error)
+      console.error(`Failed to update Cloudflare tunnel config for ${hostname}: ${summary}`)
+      return {
+        version: '1' as const,
+        title: 'Cloudflare Update Failed',
+        message: `Could not update the Cloudflare tunnel configuration for ${hostname}. ${summary}`,
+        result: null,
+      }
+    }
 
     await store.merge(effects, {
       tunnel: {
@@ -150,6 +180,7 @@ export const addPublicHostname = sdk.Action.withInput(
     } catch {}
 
     let dnsCreated = false
+    let dnsFailureDetail: string | null = null
     if (certExists) {
       await sdk.SubContainer.withTemp(
         effects,
@@ -171,11 +202,20 @@ export const addPublicHostname = sdk.Action.withInput(
           )
           if (result.stdout) console.info(result.stdout)
           if (result.stderr) console.info(result.stderr)
-          if (result.exitCode === 0) dnsCreated = true
-          else console.error(`DNS route creation failed. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`)
+          if (result.exitCode === 0) {
+            dnsCreated = true
+          } else {
+            dnsFailureDetail = summarizeDnsRouteFailure(
+              `${result.stderr || ''}\n${result.stdout || ''}`,
+            )
+            console.error(
+              `DNS route creation failed for ${hostname}: ${dnsFailureDetail}. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+            )
+          }
         },
       )
     } else {
+      dnsFailureDetail = 'No zone certificate is available for this zone.'
       console.info(`No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`)
     }
 
@@ -186,7 +226,9 @@ export const addPublicHostname = sdk.Action.withInput(
       title: i18n('Public Hostname Added'),
       message: dnsCreated
         ? `${hostname} is now routed to this service. ${i18n('DNS record created automatically.')}`
-        : `${hostname} is now routed to this service. ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+        : dnsFailureDetail
+          ? `${hostname} is now routed to this service, but automatic DNS creation failed: ${dnsFailureDetail} ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`
+          : `${hostname} is now routed to this service. ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`,
       result: {
         type: 'single' as const,
         value: `https://${hostname}`,

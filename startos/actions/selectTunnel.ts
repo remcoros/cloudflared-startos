@@ -85,11 +85,14 @@ export const selectTunnel = sdk.Action.withInput(
 
       // Fetch list of available tunnels
       let tunnels: Array<{ id: string; name: string }> = []
+      let tunnelLoadWarning: string | null = null
       try {
         const stdout = await runCf(effects!, ['tunnel', 'list', '--output', 'json'], 30_000, certForList)
         tunnels = parseTunnelList(stdout)
       } catch (e) {
-        console.error(`Failed to list tunnels: ${String(e)}`)
+        const summary = e instanceof Error ? e.message : String(e)
+        console.error(`Failed to list tunnels: ${summary}`)
+        tunnelLoadWarning = 'Could not load existing tunnels from Cloudflare. You can still create a new tunnel.'
       }
 
       // Infer server name from mDNS for new tunnel default
@@ -127,6 +130,7 @@ export const selectTunnel = sdk.Action.withInput(
 
       return {
         name: 'Tunnel',
+        warning: tunnelLoadWarning,
         default: defaultId,
         disabled: false,
         variants: Variants.of(variants),
