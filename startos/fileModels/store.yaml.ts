@@ -15,6 +15,7 @@ export type IngressEntry = z.infer<typeof ingressEntryShape>
 export const tunnelInfoShape = z.object({
   id: z.string(),
   name: z.string(),
+  accountId: z.string().catch(''),
 })
 
 export type TunnelInfo = z.infer<typeof tunnelInfoShape>

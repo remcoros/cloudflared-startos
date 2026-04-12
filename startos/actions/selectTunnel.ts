@@ -180,8 +180,10 @@ export const selectTunnel = sdk.Action.withInput(
     } catch { /* file didn't exist, that's fine */ }
     await runCf(effects, ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId], 30_000, origincert)
 
+    const tunnelAccountId = firstZoneId ? conf?.zones?.[firstZoneId]?.accountId ?? '' : ''
+
     await store.merge(effects, {
-      tunnel: { id: tunnelId, name: tunnelName },
+      tunnel: { id: tunnelId, name: tunnelName, accountId: tunnelAccountId },
     })
 
     console.info(`Tunnel set to: ${tunnelName} (${tunnelId})`)

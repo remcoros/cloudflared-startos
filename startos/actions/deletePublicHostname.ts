@@ -43,29 +43,31 @@ export const deletePublicHostname = sdk.Action.withInput(
   async ({ effects, input }) => {
     const { hostname } = input.urlPluginMetadata
 
-    // Read before mutating so we can look up the zone for DNS deletion
+    // Read before mutating so we can look up the zone for the remote update and DNS deletion.
     const conf = await store.read().once()
+    const entry = conf?.ingress?.[hostname]
+    const zoneId = entry?.zoneId
+    const zone = zoneId ? conf?.zones?.[zoneId] : undefined
 
-    // Remove from store and push updated ingress to CF API
+    if (conf?.tunnel) {
+      if (!zone) {
+        throw new Error(
+          `No Cloudflare zone credentials found for ${hostname}. Refusing to remove the local entry before the remote tunnel config is updated.`,
+        )
+      }
+
+      const nextIngress = { ...(conf.ingress ?? {}) }
+      delete nextIngress[hostname]
+
+      // Push to Cloudflare first so local state only changes after the remote config is updated.
+      await pushIngressToApi(zone.accountId, conf.tunnel.id, zone.apiToken, nextIngress)
+    }
+
     await store.merge(effects, {
       ingress: { [hostname]: undefined } as any,
     })
-    const updated = await store.read().once()
-    const accountId = Object.values(updated?.zones ?? {})[0]?.accountId ?? ''
-    if (updated?.tunnel && accountId) {
-      const anyZoneToken = Object.values(updated.zones ?? {})[0]?.apiToken ?? ''
-      await pushIngressToApi(
-        accountId,
-        updated.tunnel.id,
-        anyZoneToken,
-        updated.ingress ?? {},
-      )
-    }
 
     // Delete DNS record using the zone-specific token from the ingress entry
-    const entry = conf?.ingress?.[hostname]
-    const zoneId = entry?.zoneId
-    const zone = zoneId ? updated?.zones?.[zoneId] : undefined
     if (zone) {
       await deleteDnsRecord(zoneId!, hostname, zone.apiToken)
     } else {

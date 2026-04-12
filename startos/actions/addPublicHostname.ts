@@ -100,26 +100,46 @@ export const addPublicHostname = sdk.Action.withInput(
     }
 
     const zone = conf.zones[zoneId]
+    const tunnelAccountId = conf.tunnel.accountId || zone.accountId
+
+    if (conf.tunnel.accountId && zone.accountId !== conf.tunnel.accountId) {
+      return {
+        version: '1' as const,
+        title: 'Cloudflare Account Mismatch',
+        message: 'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
+        result: null,
+      }
+    }
+
     const hostname = `${subdomain}.${zone.zoneName}`
     const host = packageId === 'STARTOS' ? 'startos' : `${packageId}.startos`
     const service = `http://${host}:${internalPort}`
     const tunnelId = conf.tunnel.id
+    const nextEntry = {
+      packageId: packageId === 'STARTOS' ? null : packageId,
+      hostId,
+      interfaceId,
+      internalPort,
+      service,
+      zoneId,
+    }
+    const nextIngress = {
+      ...(conf.ingress ?? {}),
+      [hostname]: nextEntry,
+    }
 
-    // Persist ingress entry and push to Cloudflare API
+    // Push to Cloudflare first so local state only changes after the remote config is updated.
+    await pushIngressToApi(zone.accountId, tunnelId, zone.apiToken, nextIngress)
+
     await store.merge(effects, {
+      tunnel: {
+        ...conf.tunnel,
+        accountId: tunnelAccountId,
+      },
       ingress: {
-        [hostname]: {
-          packageId: packageId === 'STARTOS' ? null : packageId,
-          hostId,
-          interfaceId,
-          internalPort,
-          service,
-          zoneId,
-        },
+        [hostname]: nextEntry,
       },
     })
-    const updated = await store.read().once()
-    await pushIngressToApi(zone.accountId, tunnelId, zone.apiToken, updated?.ingress ?? {})
 
     // Create DNS CNAME via cloudflared CLI using zone-specific cert
     const certSubpath = zoneCertSubpath(zoneId)

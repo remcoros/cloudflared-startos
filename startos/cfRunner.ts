@@ -4,6 +4,9 @@ import { T } from '@start9labs/start-sdk'
 /**
  * Standard mounts for cloudflared CLI subcontainers.
  * Mounts the main volume at /root/data and .cloudflared at /root/.cloudflared.
+ *
+ * .cloudflared must be writable here because tunnel token commands write
+ * credentials into the mounted volume.
  */
 export const cfMounts = sdk.Mounts.of()
   .mountVolume({
@@ -16,7 +19,7 @@ export const cfMounts = sdk.Mounts.of()
     volumeId: 'main',
     subpath: '.cloudflared',
     mountpoint: '/root/.cloudflared',
-    readonly: true,
+    readonly: false,
   })
 
 /**
