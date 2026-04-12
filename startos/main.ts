@@ -7,18 +7,32 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   const conf = (await store.read().const(effects))!
 
+  if (!conf.tunnel) {
+    console.info('No tunnel configured - waiting for tunnel selection')
+    return sdk.Daemons.of(effects)
+  }
+
+  const credFile = `/root/.cloudflared/${conf.tunnel.id}.json`
+
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,
       {
         imageId: 'main',
       },
-      sdk.Mounts.of().mountVolume({
-        volumeId: 'main',
-        subpath: null,
-        mountpoint: '/root/data',
-        readonly: false,
-      }),
+      sdk.Mounts.of()
+        .mountVolume({
+          volumeId: 'main',
+          subpath: null,
+          mountpoint: '/root/data',
+          readonly: false,
+        })
+        .mountVolume({
+          volumeId: 'main',
+          subpath: '.cloudflared',
+          mountpoint: '/root/.cloudflared',
+          readonly: true,
+        }),
       'main',
     ),
     exec: {
@@ -29,21 +43,22 @@ export const main = sdk.setupMain(async ({ effects }) => {
         '--metrics',
         '0.0.0.0:20241',
         'tunnel',
+        '--credentials-file',
+        credFile,
         'run',
+        conf.tunnel.id,
       ],
-      env: {
-        TUNNEL_TOKEN: conf.token,
-      },
+      env: {},
     },
     ready: {
-      display: i18n('Cloudflare tunnel client'),
+      display: i18n('Cloudflare tunnel'),
       fn: () =>
         sdk.healthCheck.checkWebUrl(
           effects,
           'http://cloudflared.startos:20241/metrics',
           {
-            successMessage: i18n('Cloudflare tunnel client is running'),
-            errorMessage: i18n('Cloudflare tunnel client is not running'),
+            successMessage: i18n('Cloudflare tunnel is running'),
+            errorMessage: i18n('Cloudflare tunnel is not running'),
           },
         ),
     },
