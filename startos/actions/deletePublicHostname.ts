@@ -1,6 +1,10 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { pushIngressToApi, deleteDnsRecord } from '../cfApi'
+import {
+  pushIngressToApi,
+  deleteDnsRecord,
+  summarizeCloudflareError,
+} from '../cfApi'
 import { i18n } from '../i18n'
 
 const { InputSpec, Value } = sdk
@@ -27,7 +31,9 @@ export const deletePublicHostname = sdk.Action.withInput(
   async () => ({
     name: i18n('Delete Public Hostname'),
     description: i18n('Remove a Cloudflare public hostname route'),
-    warning: i18n('This will remove this hostname from your Cloudflare tunnel and delete the DNS record from Cloudflare.'),
+    warning: i18n(
+      'This will remove this hostname from your Cloudflare tunnel and delete the DNS record from Cloudflare.',
+    ),
     allowedStatuses: 'any',
     group: null,
     visibility: 'hidden',
@@ -60,7 +66,25 @@ export const deletePublicHostname = sdk.Action.withInput(
       delete nextIngress[hostname]
 
       // Push to Cloudflare first so local state only changes after the remote config is updated.
-      await pushIngressToApi(zone.accountId, conf.tunnel.id, zone.apiToken, nextIngress)
+      try {
+        await pushIngressToApi(
+          zone.accountId,
+          conf.tunnel.id,
+          zone.apiToken,
+          nextIngress,
+        )
+      } catch (error) {
+        const summary = summarizeCloudflareError(error)
+        console.error(
+          `Failed to update Cloudflare tunnel config while removing ${hostname}: ${summary}`,
+        )
+        return {
+          version: '1',
+          title: 'Cloudflare Update Failed',
+          message: `Could not remove ${hostname} from the Cloudflare tunnel configuration. ${summary}`,
+          result: null,
+        }
+      }
     }
 
     await store.merge(effects, {
@@ -68,15 +92,40 @@ export const deletePublicHostname = sdk.Action.withInput(
     })
 
     // Delete DNS record using the zone-specific token from the ingress entry
+    let dnsWarning: string | null = null
     if (zone) {
-      await deleteDnsRecord(zoneId!, hostname, zone.apiToken)
+      try {
+        const dnsResult = await deleteDnsRecord(
+          zoneId!,
+          hostname,
+          zone.apiToken,
+        )
+        if (dnsResult.errors.length > 0) {
+          dnsWarning = `The Cloudflare tunnel was updated, but deleting the DNS record failed: ${dnsResult.errors[0]}`
+        }
+      } catch (error) {
+        const summary = summarizeCloudflareError(error)
+        console.error(`Failed to delete DNS record for ${hostname}: ${summary}`)
+        dnsWarning = `The Cloudflare tunnel was updated, but deleting the DNS record failed: ${summary}`
+      }
     } else {
       console.info(`No zone info for ${hostname} - delete DNS record manually`)
+      dnsWarning =
+        'The Cloudflare tunnel was updated, but this package could not determine which zone to use for deleting the DNS record automatically.'
     }
 
     // Restart the daemon so cloudflared picks up the change
     await effects.restart()
 
     console.info(`Public hostname ${hostname} removed`)
+
+    if (dnsWarning) {
+      return {
+        version: '1',
+        title: 'Public Hostname Removed with DNS Warning',
+        message: dnsWarning,
+        result: null,
+      }
+    }
   },
 )

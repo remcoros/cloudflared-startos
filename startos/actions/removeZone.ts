@@ -15,11 +15,16 @@ export const removeZone = sdk.Action.withInput(
     const count = Object.keys(zones).length
     return {
       name: i18n('Remove DNS Zone'),
-      description: i18n('Remove a Cloudflare DNS zone from this package. Existing public hostnames for this zone will no longer have automatic DNS management.'),
-      warning: i18n('Existing DNS records and ingress rules in Cloudflare will NOT be deleted.'),
-      allowedStatuses: 'any' as const,
+      description: i18n(
+        'Remove a Cloudflare DNS zone from this package. Existing hostnames in that zone may keep working, but this package will no longer manage their DNS or tunnel routes.',
+      ),
+      warning: i18n(
+        'Existing DNS records and ingress rules in Cloudflare will NOT be deleted.',
+      ),
+      allowedStatuses: 'any',
       group: 'Configuration',
-      visibility: count === 0 ? ({ disabled: i18n('No zones configured') } as const) : ('enabled' as const),
+      visibility:
+        count === 0 ? { disabled: i18n('No zones configured') } : 'enabled',
     }
   },
 
@@ -27,13 +32,19 @@ export const removeZone = sdk.Action.withInput(
     zoneId: Value.dynamicUnion(async ({ effects }) => {
       const conf = await store.read().once()
       const zones = conf?.zones ?? {}
-      const variants: Record<string, { name: string; spec: ReturnType<typeof InputSpec.of> }> = {}
+      const variants: Record<
+        string,
+        { name: string; spec: ReturnType<typeof InputSpec.of> }
+      > = {}
       for (const [id, z] of Object.entries(zones)) {
         if (!z) continue
         variants[id] = { name: z.zoneName, spec: InputSpec.of({}) }
       }
       if (Object.keys(variants).length === 0) {
-        variants['none'] = { name: 'No zones configured', spec: InputSpec.of({}) }
+        variants['none'] = {
+          name: 'No zones configured',
+          spec: InputSpec.of({}),
+        }
       }
       return {
         name: 'Zone',

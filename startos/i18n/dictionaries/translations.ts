@@ -24,7 +24,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'Eliminar zona DNS',
-    221: 'Elimina una zona DNS de Cloudflare de este paquete. Los nombres de host públicos existentes para esta zona ya no tendrán gestión DNS automática.',
+    221: 'Elimina una zona DNS de Cloudflare de este paquete. Los nombres de host existentes en esa zona pueden seguir funcionando, pero este paquete ya no gestionará sus rutas DNS ni del túnel.',
     222: 'Los registros DNS y las reglas de entrada existentes en Cloudflare NO serán eliminados.',
     223: 'No hay zonas configuradas',
 
@@ -78,7 +78,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'DNS-Zone entfernen',
-    221: 'Entfernt eine Cloudflare-DNS-Zone aus diesem Paket. Für diese Zone werden öffentliche Hostnamen nicht mehr automatisch verwaltet.',
+    221: 'Entfernt eine Cloudflare-DNS-Zone aus diesem Paket. Vorhandene Hostnamen in dieser Zone funktionieren möglicherweise weiterhin, aber dieses Paket verwaltet deren DNS- oder Tunnel-Routen nicht mehr.',
     222: 'Vorhandene DNS-Einträge und Ingress-Regeln in Cloudflare werden NICHT gelöscht.',
     223: 'Keine Zonen konfiguriert',
 
@@ -132,7 +132,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'Usuń strefę DNS',
-    221: 'Usuwa strefę DNS Cloudflare z tego pakietu. Istniejące publiczne nazwy hostów dla tej strefy nie będą już miały automatycznego zarządzania DNS.',
+    221: 'Usuwa strefę DNS Cloudflare z tego pakietu. Istniejące nazwy hostów w tej strefie mogą nadal działać, ale ten pakiet nie będzie już zarządzał ich trasami DNS ani tunelu.',
     222: 'Istniejące rekordy DNS i reguły przychodzące w Cloudflare NIE zostaną usunięte.',
     223: 'Brak skonfigurowanych stref',
 
@@ -166,8 +166,8 @@ export default {
   fr_FR: {
     // main.ts
     1: 'Tunnel Cloudflare',
-    2: 'Le tunnel Cloudflare est en cours d\'exécution',
-    3: 'Le tunnel Cloudflare n\'est pas en cours d\'exécution',
+    2: "Le tunnel Cloudflare est en cours d'exécution",
+    3: "Le tunnel Cloudflare n'est pas en cours d'exécution",
 
     // interfaces.ts
     100: 'Métriques',
@@ -176,23 +176,23 @@ export default {
     // actions/cloudflareLogin.ts
     200: 'Se connecter à Cloudflare',
     201: 'Ajouter une zone DNS',
-    202: 'S\'authentifie avec une zone DNS Cloudflare. Relancez cette action pour ajouter des zones supplémentaires.',
+    202: "S'authentifie avec une zone DNS Cloudflare. Relancez cette action pour ajouter des zones supplémentaires.",
     209: 'Un nom pour votre nouveau tunnel Cloudflare.',
 
     // actions/selectTunnel.ts
     210: 'Tunnel Cloudflare : Non sélectionné',
     211: 'Choisissez quel tunnel Cloudflare ce serveur utilise. Vous pouvez sélectionner un tunnel existant ou en créer un nouveau.',
-    212: 'Connectez-vous d\'abord à Cloudflare pour configurer une zone',
+    212: "Connectez-vous d'abord à Cloudflare pour configurer une zone",
 
     // actions/removeZone.ts
     220: 'Supprimer la zone DNS',
-    221: 'Supprime une zone DNS Cloudflare de ce paquet. Les noms d\'hôtes publics existants pour cette zone n\'auront plus de gestion DNS automatique.',
-    222: 'Les enregistrements DNS et les règles d\'entrée existants dans Cloudflare ne seront PAS supprimés.',
+    221: "Supprime une zone DNS Cloudflare de ce paquet. Les noms d'hôte existants dans cette zone peuvent continuer à fonctionner, mais ce paquet ne gérera plus leurs routes DNS ni de tunnel.",
+    222: "Les enregistrements DNS et les règles d'entrée existants dans Cloudflare ne seront PAS supprimés.",
     223: 'Aucune zone configurée',
 
     // actions/addPublicHostname.ts
-    230: 'Ajouter un nom d\'hôte public',
-    231: 'Achemine un nom d\'hôte public Cloudflare vers ce service',
+    230: "Ajouter un nom d'hôte public",
+    231: "Achemine un nom d'hôte public Cloudflare vers ce service",
     232: 'Sous-domaine',
     233: 'Le sous-domaine à acheminer vers ce service (ex. monapp).',
     234: 'Sous-domaine uniquement, sans points (ex. monapp)',
@@ -202,7 +202,7 @@ export default {
     238: 'Connectez-vous d\'abord à Cloudflare (lancez l\'action "Se connecter à Cloudflare") pour configurer une zone DNS.',
     239: 'Aucun tunnel configuré',
     240: 'Sélectionnez d\'abord un tunnel Cloudflare (lancez l\'action "Tunnel Cloudflare").',
-    241: 'Nom d\'hôte public ajouté',
+    241: "Nom d'hôte public ajouté",
     242: 'Enregistrement DNS créé automatiquement.',
     243: 'Ajoutez manuellement un enregistrement CNAME dans le tableau de bord Cloudflare (avec proxy).',
 
@@ -214,7 +214,7 @@ export default {
 
     // actions/deletePublicHostname.ts
     250: "Supprimer le nom d'h\u00f4te public",
-    251: 'Supprime une route de nom d\'hôte public Cloudflare',
-    252: 'Cela supprimera ce nom d\'hôte de votre tunnel Cloudflare et l\'enregistrement DNS de Cloudflare.',
+    251: "Supprime une route de nom d'hôte public Cloudflare",
+    252: "Cela supprimera ce nom d'hôte de votre tunnel Cloudflare et l'enregistrement DNS de Cloudflare.",
   },
 } satisfies Record<string, LangDict>
