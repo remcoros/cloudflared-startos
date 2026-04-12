@@ -23,13 +23,18 @@ export const cloudflareLogin = sdk.Action.withoutInput(
 
   async ({ effects }) => {
     const conf = await store.read().const(effects)
-    const zoneNames = Object.values(conf?.zones ?? {}).filter(Boolean).map((z) => z!.zoneName)
-    const nameLabel = zoneNames.length === 0
-      ? i18n('Login to Cloudflare')
-      : i18n('Add DNS Zone')
+    const zoneNames = Object.values(conf?.zones ?? {})
+      .filter(Boolean)
+      .map((z) => z!.zoneName)
+    const nameLabel =
+      zoneNames.length === 0
+        ? i18n('Login to Cloudflare')
+        : i18n('Add DNS Zone')
     return {
       name: nameLabel,
-      description: i18n('Authenticates with a Cloudflare DNS zone. Run this action again to add additional zones.'),
+      description: i18n(
+        'Authenticates with a Cloudflare DNS zone. Run this action again to add additional zones.',
+      ),
       warning: null,
       allowedStatuses: 'any',
       group: 'Configuration',
@@ -43,9 +48,17 @@ export const cloudflareLogin = sdk.Action.withoutInput(
 
     // Fire and forget - cf-login.sh starts cloudflared login, extracts the auth URL,
     // writes it to the volume, then waits up to 10 min for auth to complete
-    sdk.SubContainer.withTemp(effects, { imageId: 'main' }, mounts, 'cf-login',
+    sdk.SubContainer.withTemp(
+      effects,
+      { imageId: 'main' },
+      mounts,
+      'cf-login',
       async (sub) => {
-        const result = await sub.exec(['/usr/local/bin/cf-login.sh'], {}, 10 * 60 * 1000)
+        const result = await sub.exec(
+          ['/usr/local/bin/cf-login.sh'],
+          {},
+          10 * 60 * 1000,
+        )
         if (result.stdout) console.info(result.stdout)
         if (result.stderr) console.info(result.stderr)
         if (result.exitCode !== 0) {
@@ -59,15 +72,17 @@ export const cloudflareLogin = sdk.Action.withoutInput(
     while (Date.now() < deadline) {
       await new Promise<void>((r) => setTimeout(r, 2000))
       try {
-        const url = (await sdk.volumes.main.readFile(LOGIN_URL_PATH)).toString().trim()
+        const url = (await sdk.volumes.main.readFile(LOGIN_URL_PATH))
+          .toString()
+          .trim()
         if (url.startsWith('https://dash.cloudflare.com')) {
           return {
-            version: '1' as const,
+            version: '1',
             title: 'Cloudflare Authorization',
             message:
               'Visit the URL below to authorize. After authorizing, DNS routes will be created automatically when you add a public hostname.',
             result: {
-              type: 'single' as const,
+              type: 'single',
               value: url,
               copyable: true,
               qr: false,
@@ -80,6 +95,8 @@ export const cloudflareLogin = sdk.Action.withoutInput(
       }
     }
 
-    throw new Error('Timed out waiting for Cloudflare auth URL. Check the service logs.')
+    throw new Error(
+      'Timed out waiting for Cloudflare auth URL. Check the service logs.',
+    )
   },
 )

@@ -50,7 +50,10 @@ const inputSpec = InputSpec.of({
   domain: Value.dynamicUnion(async ({ effects }) => {
     const conf = await store.read().once()
     const zones = conf?.zones ?? {}
-    const variants: Record<string, { name: string; spec: ReturnType<typeof InputSpec.of> }> = {}
+    const variants: Record<
+      string,
+      { name: string; spec: ReturnType<typeof InputSpec.of> }
+    > = {}
 
     for (const [id, z] of Object.entries(zones)) {
       if (!z) continue
@@ -58,7 +61,10 @@ const inputSpec = InputSpec.of({
     }
 
     if (Object.keys(variants).length === 0) {
-      variants['none'] = { name: i18n('Login to Cloudflare to see your domains'), spec: InputSpec.of({}) }
+      variants['none'] = {
+        name: i18n('Login to Cloudflare to see your domains'),
+        spec: InputSpec.of({}),
+      }
     }
 
     return {
@@ -94,7 +100,8 @@ export const addPublicHostname = sdk.Action.withInput(
   },
 
   async ({ effects, input }) => {
-    const { packageId, internalPort, interfaceId, hostId } = input.urlPluginMetadata
+    const { packageId, internalPort, interfaceId, hostId } =
+      input.urlPluginMetadata
     const subdomain = input.subdomain.trim().toLowerCase()
     const zoneId = (input.domain as { selection: string }).selection
 
@@ -102,18 +109,22 @@ export const addPublicHostname = sdk.Action.withInput(
 
     if (zoneId === 'none' || !conf?.zones?.[zoneId]) {
       return {
-        version: '1' as const,
+        version: '1',
         title: i18n('No Zone Configured'),
-        message: i18n('Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.'),
+        message: i18n(
+          'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.',
+        ),
         result: null,
       }
     }
 
     if (!conf.tunnel) {
       return {
-        version: '1' as const,
+        version: '1',
         title: i18n('No Tunnel Configured'),
-        message: i18n('Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).'),
+        message: i18n(
+          'Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).',
+        ),
         result: null,
       }
     }
@@ -123,9 +134,10 @@ export const addPublicHostname = sdk.Action.withInput(
 
     if (conf.tunnel.accountId && zone.accountId !== conf.tunnel.accountId) {
       return {
-        version: '1' as const,
+        version: '1',
         title: 'Cloudflare Account Mismatch',
-        message: 'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
+        message:
+          'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
         result: null,
       }
     }
@@ -149,12 +161,19 @@ export const addPublicHostname = sdk.Action.withInput(
 
     // Push to Cloudflare first so local state only changes after the remote config is updated.
     try {
-      await pushIngressToApi(zone.accountId, tunnelId, zone.apiToken, nextIngress)
+      await pushIngressToApi(
+        zone.accountId,
+        tunnelId,
+        zone.apiToken,
+        nextIngress,
+      )
     } catch (error) {
       const summary = summarizeCloudflareError(error)
-      console.error(`Failed to update Cloudflare tunnel config for ${hostname}: ${summary}`)
+      console.error(
+        `Failed to update Cloudflare tunnel config for ${hostname}: ${summary}`,
+      )
       return {
-        version: '1' as const,
+        version: '1',
         title: 'Cloudflare Update Failed',
         message: `Could not update the Cloudflare tunnel configuration for ${hostname}. ${summary}`,
         result: null,
@@ -186,19 +205,35 @@ export const addPublicHostname = sdk.Action.withInput(
         effects,
         { imageId: 'main' },
         sdk.Mounts.of()
-          .mountVolume({ volumeId: 'main', subpath: null, mountpoint: '/root/data', readonly: false })
-          .mountVolume({ volumeId: 'main', subpath: '.cloudflared', mountpoint: '/root/.cloudflared', readonly: true }),
+          .mountVolume({
+            volumeId: 'main',
+            subpath: null,
+            mountpoint: '/root/data',
+            readonly: false,
+          })
+          .mountVolume({
+            volumeId: 'main',
+            subpath: '.cloudflared',
+            mountpoint: '/root/.cloudflared',
+            readonly: true,
+          }),
         'route-dns',
         async (sub) => {
           const certPath = `/root/.cloudflared/zone-${zoneId}.pem`
           const result = await sub.exec(
             [
-              '/usr/local/bin/cloudflared', '--no-autoupdate',
+              '/usr/local/bin/cloudflared',
+              '--no-autoupdate',
               `--origincert=${certPath}`,
-              'tunnel', 'route', 'dns', '--overwrite-dns',
-              tunnelId, hostname,
+              'tunnel',
+              'route',
+              'dns',
+              '--overwrite-dns',
+              tunnelId,
+              hostname,
             ],
-            {}, 30_000,
+            {},
+            30_000,
           )
           if (result.stdout) console.info(result.stdout)
           if (result.stderr) console.info(result.stderr)
@@ -216,13 +251,15 @@ export const addPublicHostname = sdk.Action.withInput(
       )
     } else {
       dnsFailureDetail = 'No zone certificate is available for this zone.'
-      console.info(`No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`)
+      console.info(
+        `No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+      )
     }
 
     await effects.restart()
 
     return {
-      version: '1' as const,
+      version: '1',
       title: i18n('Public Hostname Added'),
       message: dnsCreated
         ? `${hostname} is now routed to this service. ${i18n('DNS record created automatically.')}`
@@ -230,7 +267,7 @@ export const addPublicHostname = sdk.Action.withInput(
           ? `${hostname} is now routed to this service, but automatic DNS creation failed: ${dnsFailureDetail} ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`
           : `${hostname} is now routed to this service. ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`,
       result: {
-        type: 'single' as const,
+        type: 'single',
         value: `https://${hostname}`,
         copyable: true,
         qr: false,

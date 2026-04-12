@@ -1,8 +1,8 @@
 # cloudflared container version is defined in manifest.ts
-ARG CLOUDFLARED_IMAGE
+ARG CLOUDFLARED_IMAGE=cloudflare/cloudflared:latest
 
 # used to copy cloudflared binary
-FROM $CLOUDFLARED_IMAGE as cloudflared
+FROM $CLOUDFLARED_IMAGE AS cloudflared
 
 # run on debian bookworm slim
 FROM debian:12-slim

@@ -11,7 +11,9 @@ import { i18n } from '../i18n'
  *   http://<packageId>.startos:<port>  (regular services)
  *   http://startos:<port>              (STARTOS itself)
  */
-function parseServiceUrl(service: string): { packageId: string | null; internalPort: number } | null {
+function parseServiceUrl(
+  service: string,
+): { packageId: string | null; internalPort: number } | null {
   try {
     const url = new URL(service)
     const port = Number(url.port)
@@ -52,9 +54,11 @@ export const importPublicHostnames = sdk.Action.withoutInput(
 
     if (!conf?.tunnel) {
       return {
-        version: '1' as const,
+        version: '1',
         title: i18n('No Tunnel Configured'),
-        message: i18n('Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).'),
+        message: i18n(
+          'Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).',
+        ),
         result: null,
       }
     }
@@ -63,9 +67,11 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     const firstZone = Object.values(conf.zones ?? {}).find(Boolean)
     if (!firstZone) {
       return {
-        version: '1' as const,
+        version: '1',
         title: i18n('No Zone Configured'),
-        message: i18n('Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.'),
+        message: i18n(
+          'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.',
+        ),
         result: null,
       }
     }
@@ -84,9 +90,11 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       )
     } catch (error) {
       const summary = summarizeCloudflareError(error)
-      console.error(`Failed to import public hostnames from Cloudflare: ${summary}`)
+      console.error(
+        `Failed to import public hostnames from Cloudflare: ${summary}`,
+      )
       return {
-        version: '1' as const,
+        version: '1',
         title: 'Cloudflare Import Failed',
         message: `Could not read the Cloudflare tunnel configuration. ${summary}`,
         result: null,
@@ -98,25 +106,44 @@ export const importPublicHostnames = sdk.Action.withoutInput(
 
     if (newRules.length === 0) {
       return {
-        version: '1' as const,
+        version: '1',
         title: i18n('Import Public Hostnames'),
-        message: i18n('No new public hostnames found in Cloudflare that are not already tracked.'),
+        message: i18n(
+          'No new public hostnames found in Cloudflare that are not already tracked.',
+        ),
         result: null,
       }
     }
 
     // Get all installed packages and their interfaces
     const packageIds = await effects.getInstalledPackages()
-    const interfaceMap: Map<string, { packageId: string | null; interfaceId: string; hostId: string; internalPort: number }[]> = new Map()
+    const interfaceMap: Map<
+      string,
+      {
+        packageId: string | null
+        interfaceId: string
+        hostId: string
+        internalPort: number
+      }[]
+    > = new Map()
 
     for (const pkgId of packageIds) {
       try {
-        const interfaces = await effects.listServiceInterfaces({ packageId: pkgId })
+        const interfaces = await effects.listServiceInterfaces({
+          packageId: pkgId,
+        })
         for (const [ifaceId, iface] of Object.entries(interfaces)) {
           const { hostId, internalPort } = iface.addressInfo
           const key = `${pkgId}:${internalPort}`
           if (!interfaceMap.has(key)) interfaceMap.set(key, [])
-          interfaceMap.get(key)!.push({ packageId: pkgId, interfaceId: ifaceId, hostId, internalPort })
+          interfaceMap
+            .get(key)!
+            .push({
+              packageId: pkgId,
+              interfaceId: ifaceId,
+              hostId,
+              internalPort,
+            })
         }
       } catch {
         // package may not be running / no interfaces yet — skip
@@ -124,16 +151,31 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     }
 
     // Build a lookup of known zone names → zoneId so we can filter and tag hostnames
-    const knownZones = Object.entries(conf.zones ?? {})
-      .filter((e): e is [string, NonNullable<typeof e[1]>] => !!e[1])
+    const knownZones = Object.entries(conf.zones ?? {}).filter(
+      (e): e is [string, NonNullable<(typeof e)[1]>] => !!e[1],
+    )
 
     let imported = 0
     const skipped: string[] = []
-    const ingressUpdates: Record<string, { packageId: string | null; hostId: string; interfaceId: string; internalPort: number; service: string; zoneId: string }> = {}
+    const ingressUpdates: Record<
+      string,
+      {
+        packageId: string | null
+        hostId: string
+        interfaceId: string
+        internalPort: number
+        service: string
+        zoneId: string
+      }
+    > = {}
 
     for (const rule of newRules) {
       // Only import hostnames that belong to a zone we know about
-      const matchedZone = knownZones.find(([, z]) => rule.hostname.endsWith(`.${z.zoneName}`) || rule.hostname === z.zoneName)
+      const matchedZone = knownZones.find(
+        ([, z]) =>
+          rule.hostname.endsWith(`.${z.zoneName}`) ||
+          rule.hostname === z.zoneName,
+      )
       if (!matchedZone) {
         skipped.push(`${rule.hostname} (not in any configured zone)`)
         continue
@@ -147,9 +189,18 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       }
 
       const { packageId, internalPort } = parsed
-      const key = packageId ? `${packageId}:${internalPort}` : `cloudflared:${internalPort}` // STARTOS itself unlikely but handled
+      const key = packageId
+        ? `${packageId}:${internalPort}`
+        : `cloudflared:${internalPort}` // STARTOS itself unlikely but handled
 
-      let match: { packageId: string | null; interfaceId: string; hostId: string; internalPort: number } | undefined
+      let match:
+        | {
+            packageId: string | null
+            interfaceId: string
+            hostId: string
+            internalPort: number
+          }
+        | undefined
 
       if (packageId) {
         const candidates = interfaceMap.get(key)
@@ -157,7 +208,9 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       }
 
       if (!match && packageId) {
-        skipped.push(`${rule.hostname} (no matching interface found for ${packageId}:${internalPort})`)
+        skipped.push(
+          `${rule.hostname} (no matching interface found for ${packageId}:${internalPort})`,
+        )
         continue
       }
 
@@ -178,13 +231,21 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     }
 
     const lines: string[] = []
-    if (imported > 0) lines.push(`Imported ${imported} hostname${imported === 1 ? '' : 's'}: ${Object.keys(ingressUpdates).join(', ')}`)
-    if (skipped.length > 0) lines.push(`Skipped ${skipped.length}: ${skipped.join('; ')}`)
+    if (imported > 0)
+      lines.push(
+        `Imported ${imported} hostname${imported === 1 ? '' : 's'}: ${Object.keys(ingressUpdates).join(', ')}`,
+      )
+    if (skipped.length > 0)
+      lines.push(`Skipped ${skipped.length}: ${skipped.join('; ')}`)
 
     return {
-      version: '1' as const,
+      version: '1',
       title: i18n('Import Public Hostnames'),
-      message: lines.join('\n') || i18n('No new public hostnames found in Cloudflare that are not already tracked.'),
+      message:
+        lines.join('\n') ||
+        i18n(
+          'No new public hostnames found in Cloudflare that are not already tracked.',
+        ),
       result: null,
     }
   },

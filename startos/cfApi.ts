@@ -14,7 +14,11 @@ export class CloudflareApiError extends Error {
   status: number
   body: CloudflareBody | string | null
 
-  constructor(context: string, status: number, body: CloudflareBody | string | null) {
+  constructor(
+    context: string,
+    status: number,
+    body: CloudflareBody | string | null,
+  ) {
     super(`${context}: ${summarizeCloudflareBody(body)}`)
     this.name = 'CloudflareApiError'
     this.context = context
@@ -30,7 +34,9 @@ function authHeaders(apiToken: string) {
   }
 }
 
-function summarizeCloudflareBody(body: CloudflareBody | string | null | undefined): string {
+function summarizeCloudflareBody(
+  body: CloudflareBody | string | null | undefined,
+): string {
   if (!body) return 'Unknown Cloudflare error'
 
   if (typeof body === 'string') {
@@ -73,7 +79,8 @@ async function parseCloudflareResponse(
     }
   }
 
-  const success = typeof body === 'object' && body !== null ? body.success : false
+  const success =
+    typeof body === 'object' && body !== null ? body.success : false
   if (!resp.ok || !success) {
     throw new CloudflareApiError(context, resp.status, body)
   }
@@ -152,7 +159,10 @@ export async function fetchIngressFromApi(
   )
 
   return (
-    (data.result?.config?.ingress as Array<{ hostname?: string; service: string }>) ?? []
+    (data.result?.config?.ingress as Array<{
+      hostname?: string
+      service: string
+    }>) ?? []
   ).filter((r): r is { hostname: string; service: string } => !!r.hostname)
 }
 

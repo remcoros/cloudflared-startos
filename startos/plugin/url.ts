@@ -9,8 +9,7 @@ export const registerUrlPlugin = sdk.setupOnInit(async (effects) =>
 
 export const exportUrls = sdk.plugin.url.setupExportedUrls(
   async ({ effects }) => {
-    const ingress =
-      (await store.read((s) => s.ingress).const(effects)) ?? {}
+    const ingress = (await store.read((s) => s.ingress).const(effects)) ?? {}
 
     for (const [hostname, entry] of Object.entries(ingress)) {
       if (!entry) continue

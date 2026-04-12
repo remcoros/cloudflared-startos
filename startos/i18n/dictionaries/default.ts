@@ -7,7 +7,7 @@ const dict = {
   'Cloudflare tunnel is not running': 3,
 
   // interfaces.ts
-  'Metrics': 100,
+  Metrics: 100,
   'Prometheus metrics endpoint': 101,
 
   // actions/cloudflareLogin.ts
@@ -30,10 +30,10 @@ const dict = {
   // actions/addPublicHostname.ts
   'Add Public Hostname': 230,
   'Route a public Cloudflare hostname to this service': 231,
-  'Subdomain': 232,
+  Subdomain: 232,
   'The subdomain to route to this service (e.g. myapp).': 233,
   'Subdomain only, no dots (e.g. myapp)': 234,
-  'Domain': 235,
+  Domain: 235,
   'Login to Cloudflare to see your domains': 236,
   'No Zone Configured': 237,
   'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.': 238,
