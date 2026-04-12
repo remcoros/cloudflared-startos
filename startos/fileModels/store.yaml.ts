@@ -3,16 +3,34 @@ import { sdk } from '../sdk'
 
 export const ingressEntryShape = z.object({
   packageId: z.string().nullable(),
-  hostId: z.string().catch('main'), // fallback for entries saved before hostId was added
+  hostId: z.string().catch('main'),
   interfaceId: z.string(),
   internalPort: z.number(),
-  service: z.string(), // e.g. "http://nextcloud.startos:80"
+  service: z.string(),
 })
 
 export type IngressEntry = z.infer<typeof ingressEntryShape>
 
+export const tunnelInfoShape = z.object({
+  id: z.string(),
+  name: z.string(),
+})
+
+export type TunnelInfo = z.infer<typeof tunnelInfoShape>
+
+export const zoneInfoShape = z.object({
+  zoneId: z.string(),
+  zoneName: z.string(),
+  accountId: z.string(),
+  apiToken: z.string(),
+})
+
+export type ZoneInfo = z.infer<typeof zoneInfoShape>
+
 const shape = z.object({
-  token: z.string(),
+  token: z.string().catch(''),
+  tunnel: tunnelInfoShape.nullable().catch(null),
+  zoneInfo: zoneInfoShape.nullable().catch(null),
   ingress: z.record(z.string(), ingressEntryShape.nullable()).catch({}),
 })
 
@@ -27,11 +45,12 @@ export const store = FileHelper.yaml(
 )
 
 export const createDefaultStore = async (effects: T.Effects) => {
-  // check if the file exists (from previous installs or upgrades)
   const conf = await store.read().once()
   if (!conf) {
     await store.write(effects, {
       token: '',
+      tunnel: null,
+      zoneInfo: null,
       ingress: {},
     })
   }

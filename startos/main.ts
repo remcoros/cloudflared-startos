@@ -8,6 +8,11 @@ export const main = sdk.setupMain(async ({ effects }) => {
 
   const conf = (await store.read().const(effects))!
 
+  if (!conf.token) {
+    console.info('No tunnel token configured — waiting for tunnel selection')
+    return sdk.Daemons.of(effects)
+  }
+
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
       effects,

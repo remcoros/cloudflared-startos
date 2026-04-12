@@ -45,7 +45,17 @@ export const addPublicHostname = sdk.Action.withInput(
   }),
 
   inputSpec,
-  async () => null,
+  async ({ effects, prefill }) => {
+    const p = prefill as typeof inputSpec._PARTIAL
+    const conf = await store.read().once()
+    const zone = conf?.zoneInfo?.zoneName
+    const suggestedHost = p?.urlPluginMetadata?.packageId
+    const suggested =
+      zone && suggestedHost && suggestedHost !== 'STARTOS'
+        ? `${suggestedHost}.${zone}`
+        : undefined
+    return suggested ? { hostname: suggested } : null
+  },
 
   async ({ effects, input }) => {
     const { packageId, internalPort, interfaceId, hostId } = input.urlPluginMetadata
