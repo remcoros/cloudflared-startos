@@ -6,13 +6,13 @@ import { restoreInit } from '../backups'
 import { seedStore } from './seedStore'
 import { exportUrls, registerUrlPlugin } from '../plugin/url'
 import { setupTasks } from './setupTasks'
-import { setupZoneInfo } from './setupZoneInfo'
+import { setupZones } from './setupZones'
 
 export const init = sdk.setupInit(
   restoreInit,
   versionGraph,
   seedStore,
-  setupZoneInfo,
+  setupZones,
   setInterfaces,
   actions,
   registerUrlPlugin,

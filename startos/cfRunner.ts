@@ -27,7 +27,9 @@ export async function runCf(
   effects: T.Effects,
   args: string[],
   timeoutMs = 30_000,
+  origincert?: string,
 ): Promise<string> {
+  const certArgs = origincert ? [`--origincert=${origincert}`] : []
   return sdk.SubContainer.withTemp(
     effects,
     { imageId: 'main' },
@@ -35,7 +37,7 @@ export async function runCf(
     'cf-cmd',
     async (sub) => {
       const result = await sub.exec(
-        ['/usr/local/bin/cloudflared', '--no-autoupdate', ...args],
+        ['/usr/local/bin/cloudflared', '--no-autoupdate', ...certArgs, ...args],
         {},
         timeoutMs,
       )

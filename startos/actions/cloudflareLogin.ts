@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { certPem } from '../fileModels/certPem'
+import { i18n } from '../i18n'
 
 const LOGIN_URL_PATH = '/start9/login-url.txt'
 
@@ -22,17 +22,14 @@ export const cloudflareLogin = sdk.Action.withoutInput(
   'cloudflare-login',
 
   async ({ effects }) => {
-    const loggedIn = !!(await certPem.read().const(effects))
     const conf = await store.read().const(effects)
-    const zoneName = conf?.zoneInfo?.zoneName
-    const nameLabel = loggedIn
-      ? `Cloudflare Account: Logged in${zoneName ? ` (${zoneName})` : ''}`
-      : 'Cloudflare Account: Not logged in'
+    const zoneNames = Object.values(conf?.zones ?? {}).filter(Boolean).map((z) => z!.zoneName)
+    const nameLabel = zoneNames.length === 0
+      ? i18n('Login to Cloudflare')
+      : i18n('Add DNS Zone')
     return {
       name: nameLabel,
-      description:
-        'Authenticates with your Cloudflare account so DNS routes can be created automatically. ' +
-        'Returns an authorization URL - visit it in your browser to complete login.',
+      description: i18n('Authenticates with a Cloudflare DNS zone. Run this action again to add additional zones.'),
       warning: null,
       allowedStatuses: 'any',
       group: 'Configuration',

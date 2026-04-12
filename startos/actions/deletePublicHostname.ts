@@ -1,6 +1,7 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
 import { pushIngressToApi, deleteDnsRecord } from '../cfApi'
+import { i18n } from '../i18n'
 
 const { InputSpec, Value } = sdk
 
@@ -24,9 +25,9 @@ export const deletePublicHostname = sdk.Action.withInput(
 
   // metadata
   async () => ({
-    name: 'Delete Public Hostname',
-    description: 'Remove a Cloudflare public hostname route',
-    warning: 'This will remove the hostname from the tunnel config and delete the DNS record from Cloudflare.',
+    name: i18n('Delete Public Hostname'),
+    description: i18n('Remove a Cloudflare public hostname route'),
+    warning: i18n('This will remove this hostname from your Cloudflare tunnel and delete the DNS record from Cloudflare.'),
     allowedStatuses: 'any',
     group: null,
     visibility: 'hidden',
@@ -42,26 +43,33 @@ export const deletePublicHostname = sdk.Action.withInput(
   async ({ effects, input }) => {
     const { hostname } = input.urlPluginMetadata
 
+    // Read before mutating so we can look up the zone for DNS deletion
+    const conf = await store.read().once()
+
     // Remove from store and push updated ingress to CF API
     await store.merge(effects, {
       ingress: { [hostname]: undefined } as any,
     })
     const updated = await store.read().once()
-    if (updated?.zoneInfo && updated.tunnel) {
+    const accountId = Object.values(updated?.zones ?? {})[0]?.accountId ?? ''
+    if (updated?.tunnel && accountId) {
+      const anyZoneToken = Object.values(updated.zones ?? {})[0]?.apiToken ?? ''
       await pushIngressToApi(
-        updated.zoneInfo.accountId,
+        accountId,
         updated.tunnel.id,
-        updated.zoneInfo.apiToken,
+        anyZoneToken,
         updated.ingress ?? {},
       )
     }
 
-    // Delete DNS record
-    const zoneInfo = updated?.zoneInfo
-    if (zoneInfo) {
-      await deleteDnsRecord(zoneInfo.zoneId, hostname, zoneInfo.apiToken)
+    // Delete DNS record using the zone-specific token from the ingress entry
+    const entry = conf?.ingress?.[hostname]
+    const zoneId = entry?.zoneId
+    const zone = zoneId ? updated?.zones?.[zoneId] : undefined
+    if (zone) {
+      await deleteDnsRecord(zoneId!, hostname, zone.apiToken)
     } else {
-      console.info(`No zone credentials - delete DNS record for ${hostname} manually`)
+      console.info(`No zone info for ${hostname} - delete DNS record manually`)
     }
 
     // Restart the daemon so cloudflared picks up the change

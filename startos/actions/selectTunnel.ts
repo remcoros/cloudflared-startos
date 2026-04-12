@@ -1,7 +1,7 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { certPem } from '../fileModels/certPem'
 import { runCf } from '../cfRunner'
+import { i18n } from '../i18n'
 
 const { InputSpec, Value, Variants } = sdk
 
@@ -37,7 +37,7 @@ const newTunnelSpec = (serverName: string | null) =>
   InputSpec.of({
     name: Value.text({
       name: 'Tunnel Name',
-      description: 'A name for your new Cloudflare tunnel.',
+      description: i18n('A name for your new Cloudflare tunnel.'),
       required: true,
       default: serverName,
       placeholder: 'my-server',
@@ -50,26 +50,25 @@ export const selectTunnel = sdk.Action.withInput(
   'select-tunnel',
 
   async ({ effects }) => {
-    const loggedIn = !!(await certPem.read().const(effects))
-    if (!loggedIn) {
+    const conf = await store.read().const(effects)
+    const hasZone = Object.keys(conf?.zones ?? {}).length > 0
+    if (!hasZone) {
       return {
         name: 'Select Tunnel',
-        description: 'Login to Cloudflare first before selecting a tunnel.',
+        description: i18n('Login to Cloudflare first to configure a zone'),
         warning: null,
         allowedStatuses: 'any' as const,
         group: 'Configuration',
-        visibility: { disabled: 'Login to Cloudflare first' } as const,
+        visibility: { disabled: i18n('Login to Cloudflare first to configure a zone') } as const,
       }
     }
-    const conf = await store.read().const(effects)
     const current = conf?.tunnel?.name
     const nameLabel = current
       ? `Cloudflare Tunnel: ${current}`
-      : 'Cloudflare Tunnel: Not selected'
+      : i18n('Cloudflare Tunnel: Not selected')
     return {
       name: nameLabel,
-      description:
-        'Choose which Cloudflare tunnel this server runs. You can select an existing tunnel or create a new one.',
+      description: i18n('Choose which Cloudflare tunnel this server runs. You can select an existing tunnel or create a new one.'),
       warning: null,
       allowedStatuses: 'any',
       group: 'Configuration',
@@ -79,10 +78,15 @@ export const selectTunnel = sdk.Action.withInput(
 
   InputSpec.of({
     tunnel: Value.dynamicUnion(async ({ effects }) => {
+      // Find first zone cert for origincert-required commands
+      const confForList = await store.read().once()
+      const firstZoneIdForList = Object.keys(confForList?.zones ?? {}).find((id) => confForList!.zones[id])
+      const certForList = firstZoneIdForList ? `/root/.cloudflared/zone-${firstZoneIdForList}.pem` : undefined
+
       // Fetch list of available tunnels
       let tunnels: Array<{ id: string; name: string }> = []
       try {
-        const stdout = await runCf(effects!, ['tunnel', 'list', '--output', 'json'])
+        const stdout = await runCf(effects!, ['tunnel', 'list', '--output', 'json'], 30_000, certForList)
         tunnels = parseTunnelList(stdout)
       } catch (e) {
         console.error(`Failed to list tunnels: ${String(e)}`)
@@ -101,6 +105,11 @@ export const selectTunnel = sdk.Action.withInput(
         }
       } catch {}
 
+      // Default to currently selected tunnel if one is configured
+      const conf = await store.read().once()
+      const selectedId = conf?.tunnel?.id
+      const defaultId = selectedId ?? tunnels[0]?.id ?? 'new'
+
       const variants: Record<string, { name: string; spec: ReturnType<typeof InputSpec.of> }> = {}
 
       for (const t of tunnels) {
@@ -118,7 +127,7 @@ export const selectTunnel = sdk.Action.withInput(
 
       return {
         name: 'Tunnel',
-        default: tunnels[0]?.id ?? 'new',
+        default: defaultId,
         disabled: false,
         variants: Variants.of(variants),
       }
@@ -140,18 +149,23 @@ export const selectTunnel = sdk.Action.withInput(
     let tunnelId: string
     let tunnelName: string
 
+    // Find first zone cert for origincert-required commands
+    const conf = await store.read().once()
+    const firstZoneId = Object.keys(conf?.zones ?? {}).find((id) => conf!.zones[id])
+    const origincert = firstZoneId ? `/root/.cloudflared/zone-${firstZoneId}.pem` : undefined
+
     if (selection.selection === 'new') {
       const name = selection.value.name?.trim()
       if (!name) throw new Error('Tunnel name is required.')
 
       // Create the tunnel - response includes id and name
-      const stdout = await runCf(effects, ['tunnel', 'create', '--output', 'json', name])
+      const stdout = await runCf(effects, ['tunnel', 'create', '--output', 'json', name], 30_000, origincert)
       const created = JSON.parse(stdout.trim())
       tunnelId = created.id
       tunnelName = created.name
     } else {
       tunnelId = selection.selection
-      const listOut = await runCf(effects, ['tunnel', 'list', '--output', 'json'])
+      const listOut = await runCf(effects, ['tunnel', 'list', '--output', 'json'], 30_000, origincert)
       const tunnels = parseTunnelList(listOut)
       const found = tunnels.find((t) => t.id === tunnelId)
       tunnelName = found?.name ?? tunnelId
@@ -164,7 +178,7 @@ export const selectTunnel = sdk.Action.withInput(
       const { unlink } = await import('node:fs/promises')
       await unlink(sdk.volumes.main.subpath(credSubpath))
     } catch { /* file didn't exist, that's fine */ }
-    await runCf(effects, ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId])
+    await runCf(effects, ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId], 30_000, origincert)
 
     await store.merge(effects, {
       tunnel: { id: tunnelId, name: tunnelName },

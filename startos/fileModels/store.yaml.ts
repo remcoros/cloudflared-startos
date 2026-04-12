@@ -7,6 +7,7 @@ export const ingressEntryShape = z.object({
   interfaceId: z.string(),
   internalPort: z.number(),
   service: z.string(),
+  zoneId: z.string().catch(''), // which zone's DNS this hostname was created in
 })
 
 export type IngressEntry = z.infer<typeof ingressEntryShape>
@@ -29,7 +30,7 @@ export type ZoneInfo = z.infer<typeof zoneInfoShape>
 
 const shape = z.object({
   tunnel: tunnelInfoShape.nullable().catch(null),
-  zoneInfo: zoneInfoShape.nullable().catch(null),
+  zones: z.record(z.string(), zoneInfoShape.nullish()).catch({}),
   ingress: z.record(z.string(), ingressEntryShape.nullable()).catch({}),
 })
 
@@ -48,7 +49,7 @@ export const createDefaultStore = async (effects: T.Effects) => {
   if (!conf) {
     await store.write(effects, {
       tunnel: null,
-      zoneInfo: null,
+      zones: {},
       ingress: {},
     })
   }
