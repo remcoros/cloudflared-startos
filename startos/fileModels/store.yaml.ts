@@ -1,12 +1,11 @@
-import { matches, FileHelper, T } from '@start9labs/start-sdk'
+import { z, FileHelper, T } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
-const { object, string } = matches
 
-const shape = object({
-  token: string,
+const shape = z.object({
+  token: z.string(),
 })
 
-export type StoreType = typeof shape._TYPE
+export type StoreType = z.infer<typeof shape>
 
 export const store = FileHelper.yaml(
   {
