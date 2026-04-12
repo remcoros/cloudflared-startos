@@ -1,5 +1,5 @@
 import { setupManifest } from '@start9labs/start-sdk'
-import { CLOUDFLARED_VERSION } from '../install/versions'
+import { CLOUDFLARED_VERSION } from '../versions'
 
 export const manifest = setupManifest({
   id: 'cloudflared',
