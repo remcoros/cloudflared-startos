@@ -44,6 +44,12 @@ export default {
     242: 'Registro DNS creado automáticamente.',
     243: 'Agrega un registro CNAME manualmente en el panel de Cloudflare (con proxy).',
 
+    // actions/importPublicHostnames.ts
+    260: 'Importar nombres de host públicos',
+    261: 'Escanea los nombres de host públicos existentes en tu túnel Cloudflare y agrega URLs a los servicios instalados coincidentes.',
+    262: 'Esto escaneará los nombres de host públicos existentes del túnel Cloudflare y agregará URLs a los servicios instalados coincidentes.',
+    263: 'No se encontraron nuevos nombres de host públicos en Cloudflare que no estén ya registrados.',
+
     // actions/deletePublicHostname.ts
     250: 'Eliminar nombre de host público',
     251: 'Elimina una ruta de nombre de host público de Cloudflare',
@@ -91,6 +97,12 @@ export default {
     241: 'Öffentlicher Hostname hinzugefügt',
     242: 'DNS-Eintrag automatisch erstellt.',
     243: 'Füge manuell einen CNAME-Eintrag im Cloudflare-Dashboard hinzu (mit Proxy).',
+
+    // actions/importPublicHostnames.ts
+    260: 'Öffentliche Hostnamen importieren',
+    261: 'Scannt vorhandene öffentliche Hostnamen aus deinem Cloudflare-Tunnel und fügt URLs zu passenden installierten Diensten hinzu.',
+    262: 'Dies scannt vorhandene öffentliche Hostnamen aus dem Cloudflare-Tunnel und fügt URLs zu passenden installierten Diensten hinzu.',
+    263: 'Keine neuen öffentlichen Hostnamen in Cloudflare gefunden, die noch nicht erfasst sind.',
 
     // actions/deletePublicHostname.ts
     250: 'Öffentlichen Hostnamen löschen',
@@ -140,6 +152,12 @@ export default {
     242: 'Rekord DNS utworzony automatycznie.',
     243: 'Dodaj ręcznie rekord CNAME w panelu Cloudflare (z proxy).',
 
+    // actions/importPublicHostnames.ts
+    260: 'Importuj publiczne nazwy hostów',
+    261: 'Skanuje istniejące publiczne nazwy hostów z tunelu Cloudflare i dodaje URL-e do pasujących zainstalowanych usług.',
+    262: 'Spowoduje to skanowanie istniejących publicznych nazw hostów z tunelu Cloudflare i dodanie URL-i do pasujących zainstalowanych usług.',
+    263: 'Nie znaleziono nowych publicznych nazw hostów w Cloudflare, które nie są jeszcze śledzone.',
+
     // actions/deletePublicHostname.ts
     250: 'Usuń publiczną nazwę hosta',
     251: 'Usuwa trasę publicznej nazwy hosta Cloudflare',
@@ -188,8 +206,14 @@ export default {
     242: 'Enregistrement DNS créé automatiquement.',
     243: 'Ajoutez manuellement un enregistrement CNAME dans le tableau de bord Cloudflare (avec proxy).',
 
+    // actions/importPublicHostnames.ts
+    260: "Importer les noms d'h\u00f4tes publics",
+    261: "Analyse les noms d'h\u00f4tes publics existants dans votre tunnel Cloudflare et ajoute des URLs aux services install\u00e9s correspondants.",
+    262: "Cette action analysera les noms d'h\u00f4tes publics existants du tunnel Cloudflare et ajoutera des URLs aux services install\u00e9s correspondants.",
+    263: "Aucun nouveau nom d'h\u00f4te public trouv\u00e9 dans Cloudflare qui ne soit pas d\u00e9j\u00e0 suivi.",
+
     // actions/deletePublicHostname.ts
-    250: 'Supprimer le nom d\'hôte public',
+    250: "Supprimer le nom d'h\u00f4te public",
     251: 'Supprime une route de nom d\'hôte public Cloudflare',
     252: 'Cela supprimera ce nom d\'hôte de votre tunnel Cloudflare et l\'enregistrement DNS de Cloudflare.',
   },

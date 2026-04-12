@@ -43,6 +43,12 @@ const dict = {
   'DNS record created automatically.': 242,
   'Add a CNAME record manually in the Cloudflare dashboard (proxied).': 243,
 
+  // actions/importPublicHostnames.ts
+  'Import Public Hostnames': 260,
+  'Scan existing public hostnames from your Cloudflare tunnel and add URLs to matching installed services.': 261,
+  'This will scan existing public hostnames from the Cloudflare tunnel and add URLs to matching installed services.': 262,
+  'No new public hostnames found in Cloudflare that are not already tracked.': 263,
+
   // actions/deletePublicHostname.ts
   'Delete Public Hostname': 250,
   'Remove a Cloudflare public hostname route': 251,

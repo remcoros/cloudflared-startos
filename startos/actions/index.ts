@@ -4,6 +4,7 @@ import { selectTunnel } from './selectTunnel'
 import { removeZone } from './removeZone'
 import { addPublicHostname } from './addPublicHostname'
 import { deletePublicHostname } from './deletePublicHostname'
+import { importPublicHostnames } from './importPublicHostnames'
 
 export const actions = sdk.Actions.of()
   .addAction(cloudflareLogin)
@@ -11,3 +12,4 @@ export const actions = sdk.Actions.of()
   .addAction(removeZone)
   .addAction(addPublicHostname)
   .addAction(deletePublicHostname)
+  .addAction(importPublicHostnames)
