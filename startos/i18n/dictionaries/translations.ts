@@ -24,7 +24,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'Eliminar zona DNS',
-    221: 'Elimina una zona DNS de Cloudflare de este paquete. Los nombres de host públicos existentes para esta zona ya no tendrán gestión DNS automática.',
+    221: 'Elimina una zona DNS de Cloudflare de este paquete. Los nombres de host existentes en esa zona pueden seguir funcionando, pero este paquete ya no gestionará sus rutas DNS ni del túnel.',
     222: 'Los registros DNS y las reglas de entrada existentes en Cloudflare NO serán eliminados.',
     223: 'No hay zonas configuradas',
 
@@ -78,7 +78,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'DNS-Zone entfernen',
-    221: 'Entfernt eine Cloudflare-DNS-Zone aus diesem Paket. Für diese Zone werden öffentliche Hostnamen nicht mehr automatisch verwaltet.',
+    221: 'Entfernt eine Cloudflare-DNS-Zone aus diesem Paket. Vorhandene Hostnamen in dieser Zone funktionieren möglicherweise weiterhin, aber dieses Paket verwaltet deren DNS- oder Tunnel-Routen nicht mehr.',
     222: 'Vorhandene DNS-Einträge und Ingress-Regeln in Cloudflare werden NICHT gelöscht.',
     223: 'Keine Zonen konfiguriert',
 
@@ -132,7 +132,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'Usuń strefę DNS',
-    221: 'Usuwa strefę DNS Cloudflare z tego pakietu. Istniejące publiczne nazwy hostów dla tej strefy nie będą już miały automatycznego zarządzania DNS.',
+    221: 'Usuwa strefę DNS Cloudflare z tego pakietu. Istniejące nazwy hostów w tej strefie mogą nadal działać, ale ten pakiet nie będzie już zarządzał ich trasami DNS ani tunelu.',
     222: 'Istniejące rekordy DNS i reguły przychodzące w Cloudflare NIE zostaną usunięte.',
     223: 'Brak skonfigurowanych stref',
 
@@ -186,7 +186,7 @@ export default {
 
     // actions/removeZone.ts
     220: 'Supprimer la zone DNS',
-    221: 'Supprime une zone DNS Cloudflare de ce paquet. Les noms d\'hôtes publics existants pour cette zone n\'auront plus de gestion DNS automatique.',
+    221: 'Supprime une zone DNS Cloudflare de ce paquet. Les noms d\'hôte existants dans cette zone peuvent continuer à fonctionner, mais ce paquet ne gérera plus leurs routes DNS ni de tunnel.',
     222: 'Les enregistrements DNS et les règles d\'entrée existants dans Cloudflare ne seront PAS supprimés.',
     223: 'Aucune zone configurée',
 

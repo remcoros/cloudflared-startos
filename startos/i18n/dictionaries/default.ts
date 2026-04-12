@@ -23,7 +23,7 @@ const dict = {
 
   // actions/removeZone.ts
   'Remove DNS Zone': 220,
-  'Remove a Cloudflare DNS zone from this package. Existing public hostnames for this zone will no longer have automatic DNS management.': 221,
+  'Remove a Cloudflare DNS zone from this package. Existing hostnames in that zone may keep working, but this package will no longer manage their DNS or tunnel routes.': 221,
   'Existing DNS records and ingress rules in Cloudflare will NOT be deleted.': 222,
   'No zones configured': 223,
 

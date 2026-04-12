@@ -15,7 +15,7 @@ export const removeZone = sdk.Action.withInput(
     const count = Object.keys(zones).length
     return {
       name: i18n('Remove DNS Zone'),
-      description: i18n('Remove a Cloudflare DNS zone from this package. Existing public hostnames for this zone will no longer have automatic DNS management.'),
+      description: i18n('Remove a Cloudflare DNS zone from this package. Existing hostnames in that zone may keep working, but this package will no longer manage their DNS or tunnel routes.'),
       warning: i18n('Existing DNS records and ingress rules in Cloudflare will NOT be deleted.'),
       allowedStatuses: 'any' as const,
       group: 'Configuration',
