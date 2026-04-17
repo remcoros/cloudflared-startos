@@ -85,7 +85,7 @@ export const cloudflareLogin = sdk.Action.withoutInput(
               type: 'single',
               value: url,
               copyable: true,
-              qr: false,
+              qr: true,
               masked: false,
             },
           }
