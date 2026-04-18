@@ -1,22 +1,17 @@
+import { randomUUID } from 'crypto'
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
 import { i18n } from '../i18n'
 
 const LOGIN_URL_PATH = '/start9/login-url.txt'
+const LOGIN_SESSION_PATH = '/start9/login-session-id.txt'
 
-const mounts = sdk.Mounts.of()
-  .mountVolume({
-    volumeId: 'main',
-    subpath: null,
-    mountpoint: '/root/data',
-    readonly: false,
-  })
-  .mountVolume({
-    volumeId: 'main',
-    subpath: '.cloudflared',
-    mountpoint: '/root/.cloudflared',
-    readonly: false,
-  })
+const mounts = sdk.Mounts.of().mountVolume({
+  volumeId: 'main',
+  subpath: null,
+  mountpoint: '/root/data',
+  readonly: false,
+})
 
 export const cloudflareLogin = sdk.Action.withoutInput(
   'cloudflare-login',
@@ -43,11 +38,16 @@ export const cloudflareLogin = sdk.Action.withoutInput(
   },
 
   async ({ effects }) => {
-    // Clear any stale URL file before starting
+    const sessionId = randomUUID()
+
+    // Mark this login flow as the only active one and clear any stale URL.
     await sdk.volumes.main.writeFile(LOGIN_URL_PATH, 'pending').catch(() => {})
+    await sdk.volumes.main.writeFile(LOGIN_SESSION_PATH, sessionId)
 
     // Fire and forget - cf-login.sh starts cloudflared login, extracts the auth URL,
-    // writes it to the volume, then waits up to 10 min for auth to complete
+    // writes it to the volume, then waits up to 10 min for auth to complete.
+    // If the action is triggered again, the older flow notices that it has been
+    // superseded and shuts itself down cleanly.
     sdk.SubContainer.withTemp(
       effects,
       { imageId: 'main' },
@@ -56,8 +56,12 @@ export const cloudflareLogin = sdk.Action.withoutInput(
       async (sub) => {
         const result = await sub.exec(
           ['/usr/local/bin/cf-login.sh'],
-          {},
-          10 * 60 * 1000,
+          {
+            env: {
+              LOGIN_SESSION_ID: sessionId,
+            },
+          },
+          10 * 60 * 1000 + 35_000,
         )
         if (result.stdout) console.info(result.stdout)
         if (result.stderr) console.info(result.stderr)
@@ -71,6 +75,16 @@ export const cloudflareLogin = sdk.Action.withoutInput(
     const deadline = Date.now() + 30_000
     while (Date.now() < deadline) {
       await new Promise<void>((r) => setTimeout(r, 2000))
+
+      const activeSession = (await sdk.volumes.main.readFile(LOGIN_SESSION_PATH))
+        .toString()
+        .trim()
+      if (activeSession !== sessionId) {
+        throw new Error(
+          'Cloudflare login was restarted by a newer request. Use the newest login action result.',
+        )
+      }
+
       try {
         const url = (await sdk.volumes.main.readFile(LOGIN_URL_PATH))
           .toString()
