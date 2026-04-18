@@ -4,8 +4,8 @@ ARG CLOUDFLARED_IMAGE=cloudflare/cloudflared:latest
 # used to copy cloudflared binary
 FROM $CLOUDFLARED_IMAGE AS cloudflared
 
-# run on debian bookworm slim
-FROM debian:12-slim
+# run on debian troxie slim
+FROM debian:13-slim
 
 ARG PLATFORM
 
