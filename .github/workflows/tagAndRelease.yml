@@ -6,7 +6,7 @@ on:
 
 # on:
 #   push:
-#     branches: ['master']
+#     branches: ['main']
 #     paths-ignore: ['*.md']
 
 concurrency:
