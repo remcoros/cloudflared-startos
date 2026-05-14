@@ -1,34 +1,36 @@
-# Cloudflare Tunnel for StartOS Instructions
+# Cloudflare Tunnel Instructions
 
-```
------ WARNING -----
+Cloudflare Tunnel (cloudflared) creates an outbound-only connection from your StartOS server to the Cloudflare edge network. This lets you expose services publicly via your own domain without opening inbound ports or changing your router.
 
-Publishing services on the public internet requires care.
-Use Cloudflare Tunnel only if you understand the security implications of exposing a service publicly.
+## Requirements
 
------ WARNING -----
-```
+- A Cloudflare account
+- A domain managed by Cloudflare DNS
 
-## Quick setup
+## First-time setup
 
-1. Install the Cloudflare Tunnel package on StartOS.
-2. Run **Login to Cloudflare** and open the returned authorization URL.
-3. Approve access for the DNS zone you want to manage.
-4. Run **Select Tunnel** and either choose an existing tunnel or create a new one.
-5. Open another service on StartOS, go to **URLs**, and add a Cloudflare Tunnel URL.
-6. Pick a subdomain and one of the logged-in DNS zones.
+1. Run the **Login to Cloudflare** action. A Cloudflare authorization URL will be returned.
+2. Open that URL in a browser, log in, and approve access for one DNS zone (domain).
+3. Repeat the login action if you want to manage additional DNS zones.
+4. Run **Select Tunnel** to choose an existing tunnel or create a new one.
+5. Once a tunnel is selected, the service will start automatically.
 
-The package will:
-- update the Cloudflare tunnel ingress configuration automatically
-- try to create the DNS record automatically
-- return a manual CNAME fallback if Cloudflare rejects the DNS change
+## Assigning a public address to a service
 
-Manual fallback CNAME format:
+Once a tunnel is selected and the service is running, you can assign a public Cloudflare subdomain to any service interface directly from that service's addresses page.
 
-```text
-<hostname> -> <tunnel-id>.cfargotunnel.com
-```
+1. Navigate to the service you want to expose publicly.
+2. Open the interface's addresses page.
+3. In the **Cloudflare Tunnel** addresses table, click **Add** to assign a subdomain.
+4. Enter a subdomain and select the DNS zone (domain) to use.
+5. Cloudflare Tunnel will route traffic from `subdomain.yourdomain.com` to that interface.
 
-Use the **Import Public Hostnames** action if the tunnel already has hostnames configured in Cloudflare and you want StartOS to manage and display them too.
+To remove an address, click the overflow menu on that row and select **Delete**.
 
-Use **Managed Public Routes** to see the currently selected tunnel, DNS zones, and managed application routes in one place.
+If you have existing hostname routes already configured in Cloudflare, run **Import Public Hostnames** to load them into this service.
+
+## Actions
+
+- **Login to Cloudflare** - Authenticate with a Cloudflare DNS zone.
+- **Select Tunnel** - Choose or create a Cloudflare tunnel.
+- **Import Public Hostnames** - Import existing hostname routes from Cloudflare.

@@ -9,9 +9,6 @@ export const manifest = setupManifest({
   upstreamRepo: 'https://github.com/cloudflare/cloudflared',
   marketingUrl: 'https://cloudflare.com/',
   donationUrl: null,
-  docsUrls: [
-    'https://github.com/remcoros/cloudflared-startos/blob/main/instructions.md',
-  ],
   description: {
     short: {
       en_US: 'Cloudflare Tunnel client',
