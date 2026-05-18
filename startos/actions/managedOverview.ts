@@ -89,7 +89,7 @@ function getZoneGroups(
 
     return group(`${i18n('DNS Zone')}: ${zone.zoneName}`, [
       single(i18n('Zone ID'), zone.zoneId, null, true),
-      group(i18n('Application Routes'), routeGroups),
+      ...routeGroups,
     ])
   })
 }
