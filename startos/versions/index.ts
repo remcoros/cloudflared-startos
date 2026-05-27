@@ -7,4 +7,4 @@ export const versionGraph = VersionGraph.of({
   other: [v2026_3_0],
 })
 
-export const CLOUDFLARED_VERSION = '2026.5.0'
+export const CLOUDFLARED_VERSION = '2026.5.2'
