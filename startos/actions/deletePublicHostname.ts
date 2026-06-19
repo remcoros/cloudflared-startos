@@ -51,19 +51,21 @@ export const deletePublicHostname = sdk.Action.withInput(
 
     // Read before mutating so we can look up the zone for the remote update and DNS deletion.
     const conf = await store.read().once()
-    const entry = conf?.ingress?.[hostname]
+    if (!conf) {
+      throw new Error('Cloudflared configuration is unavailable.')
+    }
+    const entry = conf.ingress?.[hostname]
     const zoneId = entry?.zoneId
-    const zone = zoneId ? conf?.zones?.[zoneId] : undefined
+    const zone = zoneId ? conf.zones?.[zoneId] : undefined
+    const nextIngress = { ...(conf.ingress ?? {}) }
+    delete nextIngress[hostname]
 
-    if (conf?.tunnel) {
+    if (conf.tunnel) {
       if (!zone) {
         throw new Error(
           `No Cloudflare zone credentials found for ${hostname}. Refusing to remove the local entry before the remote tunnel config is updated.`,
         )
       }
-
-      const nextIngress = { ...(conf.ingress ?? {}) }
-      delete nextIngress[hostname]
 
       // Push to Cloudflare first so local state only changes after the remote config is updated.
       try {
@@ -87,9 +89,7 @@ export const deletePublicHostname = sdk.Action.withInput(
       }
     }
 
-    await store.merge(effects, {
-      ingress: { [hostname]: undefined } as any,
-    })
+    await store.write(effects, { ...conf, ingress: nextIngress })
 
     // Delete DNS record using the zone-specific token from the ingress entry
     let dnsWarning: string | null = null
