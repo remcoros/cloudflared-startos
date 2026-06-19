@@ -10,9 +10,10 @@ export const removeZone = sdk.Action.withInput(
   'remove-zone',
 
   async ({ effects }) => {
-    const conf = await store.read().const(effects)
-    const zones = conf?.zones ?? {}
-    const count = Object.keys(zones).length
+    const count =
+      (await store
+        .read((conf) => Object.keys(conf.zones ?? {}).length)
+        .const(effects)) ?? 0
     return {
       name: i18n('Remove DNS Zone'),
       description: i18n(
@@ -63,25 +64,28 @@ export const removeZone = sdk.Action.withInput(
 
     // Remove all ingress entries for this zone
     const conf = await store.read().once()
-    const staleIngress: Record<string, undefined> = {}
-    for (const [hostname, entry] of Object.entries(conf?.ingress ?? {})) {
+    if (!conf) {
+      throw new Error('Cloudflared configuration is unavailable.')
+    }
+    const nextIngress = { ...conf.ingress }
+    for (const [hostname, entry] of Object.entries(conf.ingress ?? {})) {
       if (entry?.zoneId === zoneId) {
-        staleIngress[hostname] = undefined
+        delete nextIngress[hostname]
       }
     }
-    if (Object.keys(staleIngress).length > 0) {
-      await store.merge(effects, { ingress: staleIngress as any })
-    }
+    const nextZones = { ...conf.zones }
+    delete nextZones[zoneId]
+
+    await store.write(effects, {
+      ...conf,
+      ingress: nextIngress,
+      zones: nextZones,
+    })
 
     // Remove zone-specific cert file
     try {
       await unlink(sdk.volumes.main.subpath(zoneCertSubpath(zoneId)))
     } catch {}
-
-    // Remove from store
-    await store.merge(effects, {
-      zones: { [zoneId]: undefined } as any,
-    })
 
     console.info(`Zone ${zoneId} removed`)
   },

@@ -227,7 +227,6 @@ export const importPublicHostnames = sdk.Action.withoutInput(
 
     if (imported > 0) {
       await store.merge(effects, { ingress: ingressUpdates })
-      await effects.restart()
     }
 
     const lines: string[] = []

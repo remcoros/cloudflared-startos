@@ -17,14 +17,13 @@ export const cloudflareLogin = sdk.Action.withoutInput(
   'cloudflare-login',
 
   async ({ effects }) => {
-    const conf = await store.read().const(effects)
-    const zoneNames = Object.values(conf?.zones ?? {})
-      .filter(Boolean)
-      .map((z) => z!.zoneName)
-    const nameLabel =
-      zoneNames.length === 0
-        ? i18n('Login to Cloudflare')
-        : i18n('Add DNS Zone')
+    const hasZone =
+      (await store
+        .read((conf) => Object.values(conf.zones ?? {}).some(Boolean))
+        .const(effects)) ?? false
+    const nameLabel = hasZone
+      ? i18n('Add DNS Zone')
+      : i18n('Login to Cloudflare')
     return {
       name: nameLabel,
       description: i18n(
