@@ -5,14 +5,15 @@ import { i18n } from './i18n'
 export const main = sdk.setupMain(async ({ effects }) => {
   console.info('Starting cloudflared...')
 
-  const conf = (await store.read().const(effects))!
+  const tunnelId = await store
+    .read((conf) => conf.tunnel?.id ?? null)
+    .const(effects)
 
-  if (!conf.tunnel) {
-    console.info('No tunnel configured - waiting for tunnel selection')
-    return sdk.Daemons.of(effects)
+  if (!tunnelId) {
+    throw new Error('No Cloudflare tunnel is configured.')
   }
 
-  const credFile = `/root/.cloudflared/${conf.tunnel.id}.json`
+  const credFile = `/root/.cloudflared/${tunnelId}.json`
 
   return sdk.Daemons.of(effects).addDaemon('primary', {
     subcontainer: await sdk.SubContainer.of(
@@ -46,7 +47,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
         '--credentials-file',
         credFile,
         'run',
-        conf.tunnel.id,
+        tunnelId,
       ],
       env: {},
     },

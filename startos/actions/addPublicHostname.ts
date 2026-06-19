@@ -257,8 +257,6 @@ export const addPublicHostname = sdk.Action.withInput(
       )
     }
 
-    await effects.restart()
-
     return {
       version: '1',
       title: i18n('Public Hostname Added'),

@@ -10,9 +10,10 @@ export const removeZone = sdk.Action.withInput(
   'remove-zone',
 
   async ({ effects }) => {
-    const conf = await store.read().const(effects)
-    const zones = conf?.zones ?? {}
-    const count = Object.keys(zones).length
+    const count =
+      (await store
+        .read((conf) => Object.keys(conf.zones ?? {}).length)
+        .const(effects)) ?? 0
     return {
       name: i18n('Remove DNS Zone'),
       description: i18n(

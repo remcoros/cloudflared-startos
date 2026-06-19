@@ -89,8 +89,6 @@ export const deletePublicHostname = sdk.Action.withInput(
       }
     }
 
-    await store.write(effects, { ...conf, ingress: nextIngress })
-
     // Delete DNS record using the zone-specific token from the ingress entry
     let dnsWarning: string | null = null
     if (zone) {
@@ -114,8 +112,7 @@ export const deletePublicHostname = sdk.Action.withInput(
         'The Cloudflare tunnel was updated, but this package could not determine which zone to use for deleting the DNS record automatically.'
     }
 
-    // Restart the daemon so cloudflared picks up the change
-    await effects.restart()
+    await store.write(effects, { ...conf, ingress: nextIngress })
 
     console.info(`Public hostname ${hostname} removed`)
 

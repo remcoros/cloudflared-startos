@@ -53,8 +53,13 @@ export const selectTunnel = sdk.Action.withInput(
   'select-tunnel',
 
   async ({ effects }) => {
-    const conf = await store.read().const(effects)
-    const hasZone = Object.keys(conf?.zones ?? {}).length > 0
+    const state = await store
+      .read((conf) => ({
+        hasZone: Object.keys(conf.zones ?? {}).length > 0,
+        tunnelName: conf.tunnel?.name ?? null,
+      }))
+      .const(effects)
+    const hasZone = state?.hasZone ?? false
     if (!hasZone) {
       return {
         name: 'Select Tunnel',
@@ -67,7 +72,7 @@ export const selectTunnel = sdk.Action.withInput(
         },
       }
     }
-    const current = conf?.tunnel?.name
+    const current = state?.tunnelName
     const nameLabel = current
       ? `Cloudflare Tunnel: ${current}`
       : i18n('Cloudflare Tunnel: Not selected')
@@ -242,7 +247,5 @@ export const selectTunnel = sdk.Action.withInput(
     })
 
     console.info(`Tunnel set to: ${tunnelName} (${tunnelId})`)
-
-    await effects.restart()
   },
 )

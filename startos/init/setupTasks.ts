@@ -5,13 +5,18 @@ import { selectTunnel } from '../actions/selectTunnel'
 
 /**
  * Reactively manage required tasks.
- * Re-runs whenever the store changes (zones or tunnel).
+ * Re-runs whenever zone availability or tunnel selection changes.
  * - No zones configured -> task to login
  * - No tunnel selected -> task to select tunnel
  */
 export const setupTasks = sdk.setupOnInit(async (effects) => {
-  const conf = await store.read().const(effects)
-  const hasZone = Object.keys(conf?.zones ?? {}).length > 0
+  const state = await store
+    .read((conf) => ({
+      hasZone: Object.keys(conf.zones ?? {}).length > 0,
+      hasTunnel: !!conf.tunnel,
+    }))
+    .const(effects)
+  const hasZone = state?.hasZone ?? false
 
   if (!hasZone) {
     await sdk.action.createOwnTask(effects, cloudflareLogin, 'critical', {
@@ -20,7 +25,7 @@ export const setupTasks = sdk.setupOnInit(async (effects) => {
     return
   }
 
-  if (!conf?.tunnel) {
+  if (!state?.hasTunnel) {
     await sdk.action.createOwnTask(effects, selectTunnel, 'critical', {
       reason: 'Select or create a Cloudflare tunnel for this server',
     })
