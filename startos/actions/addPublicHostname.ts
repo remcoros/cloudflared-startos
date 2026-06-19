@@ -100,8 +100,9 @@ export const addPublicHostname = sdk.Action.withInput(
   },
 
   async ({ effects, input }) => {
-    const { packageId, internalPort, interfaceId, hostId } =
+    const { packageId: rawPkgId, internalPort, interfaceId, hostId } =
       input.urlPluginMetadata
+    const packageId = rawPkgId ?? 'STARTOS'
     const subdomain = input.subdomain.trim().toLowerCase()
     const zoneId = (input.domain as { selection: string }).selection
 
