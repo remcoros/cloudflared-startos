@@ -75,7 +75,9 @@ export const cloudflareLogin = sdk.Action.withoutInput(
     while (Date.now() < deadline) {
       await new Promise<void>((r) => setTimeout(r, 2000))
 
-      const activeSession = (await sdk.volumes.main.readFile(LOGIN_SESSION_PATH))
+      const activeSession = (
+        await sdk.volumes.main.readFile(LOGIN_SESSION_PATH)
+      )
         .toString()
         .trim()
       if (activeSession !== sessionId) {

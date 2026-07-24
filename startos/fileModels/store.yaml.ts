@@ -1,14 +1,24 @@
 import { z, FileHelper, T } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
-export const ingressEntryShape = z.object({
-  packageId: z.string().nullable(),
-  hostId: z.string().catch('main'),
-  interfaceId: z.string(),
-  internalPort: z.number(),
-  service: z.string(),
-  zoneId: z.string().catch(''), // which zone's DNS this hostname was created in
-})
+export const ingressEntryShape = z
+  .object({
+    packageId: z
+      .union([z.string(), z.null()])
+      .transform((value) =>
+        value === null || value === 'STARTOS' ? 'start-os' : value,
+      ),
+    hostId: z.string().catch('main'),
+    interfaceId: z.string(),
+    internalPort: z.number(),
+    service: z.string(),
+    zoneId: z.string().catch(''), // which zone's DNS this hostname was created in
+  })
+  .transform((entry) =>
+    entry.packageId === 'start-os'
+      ? { ...entry, hostId: 'admin', interfaceId: 'admin-ui' }
+      : entry,
+  )
 
 export type IngressEntry = z.infer<typeof ingressEntryShape>
 
@@ -33,6 +43,8 @@ const shape = z.object({
   tunnel: tunnelInfoShape.nullable().catch(null),
   zones: z.record(z.string(), zoneInfoShape.nullish()).catch({}),
   ingress: z.record(z.string(), ingressEntryShape.nullable()).catch({}),
+  repairRequired: z.boolean().catch(false),
+  repairMessage: z.string().nullable().catch(null),
 })
 
 export type StoreType = z.infer<typeof shape>
@@ -52,6 +64,8 @@ export const createDefaultStore = async (effects: T.Effects) => {
       tunnel: null,
       zones: {},
       ingress: {},
+      repairRequired: false,
+      repairMessage: null,
     })
   }
 }

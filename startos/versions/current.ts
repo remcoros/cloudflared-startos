@@ -1,13 +1,18 @@
 import { VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.6.1:0',
+  version: '2026.7.3:0',
   releaseNotes: {
-    en_US: 'Updated to cloudflared 2026.6.1',
-    es_ES: 'Actualizado a cloudflared 2026.6.1',
-    de_DE: 'Auf cloudflared 2026.6.1 aktualisiert',
-    pl_PL: 'Zaktualizowano do cloudflared 2026.6.1',
-    fr_FR: 'Mis à jour vers cloudflared 2026.6.1',
+    en_US:
+      'Updates cloudflared to 2026.7.3 with QUIC precheck improvements and dependency security fixes. Full changes: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+    es_ES:
+      'Actualiza cloudflared a 2026.7.3 con mejoras en las comprobaciones previas de QUIC y correcciones de seguridad en dependencias. Cambios completos: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+    de_DE:
+      'Aktualisiert cloudflared auf 2026.7.3 mit verbesserten QUIC-Vorabprüfungen und Sicherheitskorrekturen für Abhängigkeiten. Vollständige Änderungen: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+    pl_PL:
+      'Aktualizuje cloudflared do wersji 2026.7.3, dodając ulepszenia wstępnych kontroli QUIC i poprawki bezpieczeństwa zależności. Pełna lista zmian: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+    fr_FR:
+      'Met à jour cloudflared vers 2026.7.3 avec des améliorations des vérifications préalables QUIC et des correctifs de sécurité pour les dépendances. Modifications complètes : https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
   },
   migrations: {
     up: async ({ effects }) => {},
@@ -15,4 +20,4 @@ export const current = VersionInfo.of({
   },
 })
 
-export const CLOUDFLARED_VERSION = '2026.6.1'
+export const CLOUDFLARED_VERSION = '2026.7.3'

@@ -1,18 +1,18 @@
 import { sdk } from '../sdk'
-import { store } from '../fileModels/store.yaml'
-import {
-  pushIngressToApi,
-  deleteDnsRecord,
-  summarizeCloudflareError,
-} from '../cfApi'
+import { IngressEntry, store } from '../fileModels/store.yaml'
+import { deleteDnsRecord, summarizeCloudflareError } from '../cfApi'
 import { i18n } from '../i18n'
+import {
+  associateMigratedIngressWithZones,
+  updateCloudflareIngress,
+} from '../init/reconcileIngress'
 
 const { InputSpec, Value } = sdk
 
 const inputSpec = InputSpec.of({
   urlPluginMetadata: Value.hidden<{
     interfaceId: string
-    packageId: string | null
+    packageId: string
     hostId: string
     internalPort: number
     ssl: boolean
@@ -59,6 +59,7 @@ export const deletePublicHostname = sdk.Action.withInput(
     const zone = zoneId ? conf.zones?.[zoneId] : undefined
     const nextIngress = { ...(conf.ingress ?? {}) }
     delete nextIngress[hostname]
+    let migratedIngress: Record<string, IngressEntry> = {}
 
     if (conf.tunnel) {
       if (!zone) {
@@ -67,13 +68,23 @@ export const deletePublicHostname = sdk.Action.withInput(
         )
       }
 
-      // Push to Cloudflare first so local state only changes after the remote config is updated.
+      // Remove only this hostname from the complete live configuration so
+      // dashboard-managed routes and advanced settings remain untouched.
       try {
-        await pushIngressToApi(
-          zone.accountId,
-          conf.tunnel.id,
-          zone.apiToken,
-          nextIngress,
+        const result = await updateCloudflareIngress(
+          effects,
+          {
+            accountId: zone.accountId,
+            tunnelId: conf.tunnel.id,
+            apiToken: zone.apiToken,
+          },
+          {},
+          [hostname],
+          { [hostname]: entry?.service ?? null },
+        )
+        migratedIngress = associateMigratedIngressWithZones(
+          result.migratedIngress,
+          conf.zones,
         )
       } catch (error) {
         const summary = summarizeCloudflareError(error)
@@ -112,7 +123,10 @@ export const deletePublicHostname = sdk.Action.withInput(
         'The Cloudflare tunnel was updated, but this package could not determine which zone to use for deleting the DNS record automatically.'
     }
 
-    await store.write(effects, { ...conf, ingress: nextIngress })
+    await store.write(effects, {
+      ...conf,
+      ingress: { ...nextIngress, ...migratedIngress },
+    })
 
     console.info(`Public hostname ${hostname} removed`)
 

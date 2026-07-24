@@ -7,6 +7,7 @@ import { seedStore } from './seedStore'
 import { exportUrls, registerUrlPlugin } from '../plugin/url'
 import { setupTasks } from './setupTasks'
 import { setupZones } from './setupZones'
+import { reconcileIngress } from './reconcileIngress'
 
 export const init = sdk.setupInit(
   restoreInit,
@@ -16,6 +17,7 @@ export const init = sdk.setupInit(
   setInterfaces,
   actions,
   registerUrlPlugin,
+  reconcileIngress,
   setupTasks,
   exportUrls,
 )

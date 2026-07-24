@@ -48,6 +48,7 @@ const dict = {
   'Scan existing public hostnames from your Cloudflare tunnel and add URLs to matching installed services.': 261,
   'This will scan existing public hostnames from the Cloudflare tunnel and add URLs to matching installed services.': 262,
   'No new public hostnames found in Cloudflare that are not already tracked.': 263,
+  'Login to a Cloudflare DNS zone in the same account as the selected tunnel, then try again.': 264,
 
   // actions/deletePublicHostname.ts
   'Delete Public Hostname': 250,
@@ -78,6 +79,18 @@ const dict = {
   'Internal Target': 290,
   'Application Routes': 291,
   'No application routes are currently managed in this zone': 292,
+
+  // actions/repairRoutes.ts and init/setupTasks.ts
+  'Repair Cloudflare Routes': 300,
+  'Reconnect managed Cloudflare routes to their selected StartOS services.': 301,
+  'Cloudflare Routes Repaired': 302,
+  'Managed Cloudflare routes were updated successfully.': 303,
+  'Cloudflare Route Repair Failed': 304,
+  'Cloudflare routes could not be updated safely. Check the service logs, then try again.': 305,
+  'Login to Cloudflare to configure a DNS zone': 306,
+  'Select or create a Cloudflare tunnel for this server': 307,
+  'Cloudflare routes need to be reconnected to their selected StartOS services.': 308,
+  'No Cloudflare zone credentials are available to repair tunnel routes.': 309,
 } as const
 
 /**

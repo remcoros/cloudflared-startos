@@ -1,14 +1,18 @@
 import { sdk } from './sdk'
 
+export const metricsHostId = 'metrics'
+export const metricsInterfaceId = 'metrics'
+export const metricsPort = 20241
+
 export const setInterfaces = sdk.setupInterfaces(async ({ effects }) => {
-  const uiMulti = sdk.MultiHost.of(effects, 'metrics')
-  const uiMultiOrigin = await uiMulti.bindPort(20241, {
+  const uiMulti = sdk.MultiHost.of(effects, metricsHostId)
+  const uiMultiOrigin = await uiMulti.bindPort(metricsPort, {
     protocol: 'http',
   })
 
   const ui = sdk.createInterface(effects, {
     name: 'Metrics',
-    id: 'metrics',
+    id: metricsInterfaceId,
     description: 'Prometheus metrics endpoint',
     type: 'api',
     schemeOverride: null,

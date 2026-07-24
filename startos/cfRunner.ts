@@ -47,7 +47,7 @@ export async function runCf(
       if (result.stderr) console.info(result.stderr)
       if (result.exitCode !== 0) {
         throw new Error(
-          `cloudflared ${args[0]} failed (exit ${result.exitCode}): ${result.stderr || result.stdout}`,
+          `cloudflared ${args[0]} failed (exit ${result.exitCode}): ${(result.stderr || result.stdout).toString()}`,
         )
       }
       return result.stdout.toString()

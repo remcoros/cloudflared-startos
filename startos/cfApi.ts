@@ -1,5 +1,3 @@
-import { IngressEntry } from './fileModels/store.yaml'
-
 const CF_API = 'https://api.cloudflare.com/client/v4'
 
 type CloudflareBody = {
@@ -7,6 +5,17 @@ type CloudflareBody = {
   errors?: Array<{ code?: number; message?: string }>
   messages?: Array<{ code?: number; message?: string }>
   result?: any
+}
+
+export type CloudflareIngressRule = {
+  hostname?: string
+  service?: string
+  [key: string]: unknown
+}
+
+export type CloudflareTunnelConfig = {
+  ingress: CloudflareIngressRule[]
+  [key: string]: unknown
 }
 
 export class CloudflareApiError extends Error {
@@ -106,41 +115,94 @@ async function fetchCloudflare(
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
 /**
- * Push ingress rules to the Cloudflare API.
- * This is the single source of truth for tunnel ingress when source=cloudflare.
- * Always appends the required catch-all rule.
+ * Fetch the complete remotely-managed tunnel configuration.
+ *
+ * Callers must preserve this object when changing ingress. Cloudflare's PUT
+ * endpoint replaces the complete configuration, not just the supplied rules.
  */
-export async function pushIngressToApi(
+export async function fetchTunnelConfig(
   accountId: string,
   tunnelId: string,
   apiToken: string,
-  ingress: Record<string, IngressEntry | null | undefined>,
-): Promise<void> {
-  const rules: Array<{ hostname?: string; service: string }> = []
+): Promise<CloudflareTunnelConfig> {
+  const data = await fetchCloudflare(
+    `${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
+    { headers: authHeaders(apiToken) },
+    `Failed to fetch Cloudflare tunnel configuration for tunnel ${tunnelId}`,
+  )
 
-  for (const [hostname, entry] of Object.entries(ingress)) {
-    if (!entry) continue
-    rules.push({ hostname, service: entry.service })
+  const config = isRecord(data.result) ? data.result.config : null
+  if (!isRecord(config)) {
+    throw new Error(
+      `Cloudflare returned no usable configuration for tunnel ${tunnelId}. Refusing to replace it.`,
+    )
   }
 
-  // Required catch-all
-  rules.push({ service: 'http_status:404' })
+  const ingress = config.ingress
+  if (!Array.isArray(ingress) || !ingress.every(isRecord)) {
+    throw new Error(
+      `Cloudflare returned malformed ingress rules for tunnel ${tunnelId}. Refusing to replace them.`,
+    )
+  }
 
-  await fetchCloudflare(
-    `${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
-    {
-      method: 'PUT',
-      headers: authHeaders(apiToken),
-      body: JSON.stringify({
-        config: {
-          ingress: rules,
-          'warp-routing': { enabled: false },
-        },
-      }),
-    },
-    `Failed to update Cloudflare tunnel configuration for tunnel ${tunnelId}`,
-  )
+  return {
+    ...config,
+    ingress: ingress as CloudflareIngressRule[],
+  }
+}
+
+/**
+ * Read, mutate, and replace a complete tunnel configuration.
+ *
+ * The updater receives the live Cloudflare object so it can retain every
+ * unowned route and field. Throwing from the updater prevents the PUT.
+ */
+export async function updateTunnelConfig(
+  accountId: string,
+  tunnelId: string,
+  apiToken: string,
+  updater: (
+    config: CloudflareTunnelConfig,
+  ) => Promise<CloudflareTunnelConfig> | CloudflareTunnelConfig,
+): Promise<boolean> {
+  let current = await fetchTunnelConfig(accountId, tunnelId, apiToken)
+
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const next = await updater(current)
+    const currentJson = JSON.stringify(current)
+    if (JSON.stringify(next) === currentJson) return false
+
+    // Resolving StartOS bindings can take time. Re-read immediately before the
+    // full-config PUT and rebase if a dashboard edit landed in the meantime.
+    const latest = await fetchTunnelConfig(accountId, tunnelId, apiToken)
+    if (JSON.stringify(latest) !== currentJson) {
+      if (attempt === 2) {
+        throw new Error(
+          `Cloudflare tunnel ${tunnelId} kept changing while preparing an update. Refusing to replace a newer configuration.`,
+        )
+      }
+      current = latest
+      continue
+    }
+
+    await fetchCloudflare(
+      `${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
+      {
+        method: 'PUT',
+        headers: authHeaders(apiToken),
+        body: JSON.stringify({ config: next }),
+      },
+      `Failed to update Cloudflare tunnel configuration for tunnel ${tunnelId}`,
+    )
+    return true
+  }
+
+  return false
 }
 
 /**
@@ -151,19 +213,23 @@ export async function fetchIngressFromApi(
   accountId: string,
   tunnelId: string,
   apiToken: string,
-): Promise<Array<{ hostname: string; service: string }>> {
-  const data = await fetchCloudflare(
-    `${CF_API}/accounts/${accountId}/cfd_tunnel/${tunnelId}/configurations`,
-    { headers: authHeaders(apiToken) },
-    `Failed to fetch Cloudflare tunnel configuration for tunnel ${tunnelId}`,
-  )
-
-  return (
-    (data.result?.config?.ingress as Array<{
-      hostname?: string
+): Promise<
+  Array<
+    CloudflareIngressRule & {
+      hostname: string
       service: string
-    }>) ?? []
-  ).filter((r): r is { hostname: string; service: string } => !!r.hostname)
+    }
+  >
+> {
+  const config = await fetchTunnelConfig(accountId, tunnelId, apiToken)
+  return config.ingress.filter(
+    (
+      rule,
+    ): rule is CloudflareIngressRule & {
+      hostname: string
+      service: string
+    } => typeof rule.hostname === 'string' && typeof rule.service === 'string',
+  )
 }
 
 export type DeleteDnsRecordResult = {

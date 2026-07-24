@@ -6,6 +6,7 @@ import { addPublicHostname } from './addPublicHostname'
 import { deletePublicHostname } from './deletePublicHostname'
 import { importPublicHostnames } from './importPublicHostnames'
 import { managedOverview } from './managedOverview'
+import { repairRoutes } from './repairRoutes'
 
 export const actions = sdk.Actions.of()
   .addAction(cloudflareLogin)
@@ -15,3 +16,4 @@ export const actions = sdk.Actions.of()
   .addAction(deletePublicHostname)
   .addAction(importPublicHostnames)
   .addAction(managedOverview)
+  .addAction(repairRoutes)
