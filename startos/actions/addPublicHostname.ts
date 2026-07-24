@@ -1,8 +1,12 @@
 import { sdk } from '../sdk'
-import { store } from '../fileModels/store.yaml'
-import { pushIngressToApi, summarizeCloudflareError } from '../cfApi'
+import { IngressEntry, store } from '../fileModels/store.yaml'
+import { summarizeCloudflareError } from '../cfApi'
 import { zoneCertSubpath } from '../fileModels/certPem'
 import { i18n } from '../i18n'
+import {
+  associateMigratedIngressWithZones,
+  updateCloudflareIngress,
+} from '../init/reconcileIngress'
 
 const { InputSpec, Value, Variants } = sdk
 
@@ -94,15 +98,24 @@ export const addPublicHostname = sdk.Action.withInput(
   async ({ effects, prefill }) => {
     const p = prefill as typeof inputSpec._PARTIAL
     const suggestedHost = p?.urlPluginMetadata?.packageId
-    return suggestedHost && suggestedHost !== 'STARTOS'
+    return suggestedHost &&
+      suggestedHost !== 'STARTOS' &&
+      suggestedHost !== 'start-os'
       ? { subdomain: suggestedHost }
       : null
   },
 
   async ({ effects, input }) => {
-    const { packageId: rawPkgId, internalPort, interfaceId, hostId } =
-      input.urlPluginMetadata
-    const packageId = rawPkgId ?? 'STARTOS'
+    const {
+      packageId: rawPkgId,
+      internalPort,
+      interfaceId,
+      hostId,
+    } = input.urlPluginMetadata
+    const packageId = rawPkgId === 'STARTOS' ? 'start-os' : rawPkgId
+    const targetHostId = packageId === 'start-os' ? 'admin' : hostId
+    const targetInterfaceId =
+      packageId === 'start-os' ? 'admin-ui' : interfaceId
     const subdomain = input.subdomain.trim().toLowerCase()
     const zoneId = (input.domain as { selection: string }).selection
 
@@ -144,29 +157,34 @@ export const addPublicHostname = sdk.Action.withInput(
     }
 
     const hostname = `${subdomain}.${zone.zoneName}`
-    const host = packageId === 'STARTOS' ? 'startos' : `${packageId}.startos`
-    const service = `http://${host}:${internalPort}`
     const tunnelId = conf.tunnel.id
-    const nextEntry = {
-      packageId: packageId === 'STARTOS' ? null : packageId,
-      hostId,
-      interfaceId,
+    const stableEntry = {
+      packageId,
+      hostId: targetHostId,
+      interfaceId: targetInterfaceId,
       internalPort,
-      service,
       zoneId,
     }
-    const nextIngress = {
-      ...(conf.ingress ?? {}),
-      [hostname]: nextEntry,
-    }
-
-    // Push to Cloudflare first so local state only changes after the remote config is updated.
+    let nextEntry: IngressEntry
+    let migratedIngress: Record<string, IngressEntry> = {}
+    // Merge into the complete live configuration first so local state only
+    // changes after Cloudflare accepts the preservation-aware update.
     try {
-      await pushIngressToApi(
-        zone.accountId,
-        tunnelId,
-        zone.apiToken,
-        nextIngress,
+      const result = await updateCloudflareIngress(
+        effects,
+        {
+          accountId: zone.accountId,
+          tunnelId,
+          apiToken: zone.apiToken,
+        },
+        { [hostname]: stableEntry },
+        [],
+        { [hostname]: conf.ingress?.[hostname]?.service ?? null },
+      )
+      nextEntry = result.ingress[hostname]
+      migratedIngress = associateMigratedIngressWithZones(
+        result.migratedIngress,
+        conf.zones,
       )
     } catch (error) {
       const summary = summarizeCloudflareError(error)
@@ -187,6 +205,7 @@ export const addPublicHostname = sdk.Action.withInput(
         accountId: tunnelAccountId,
       },
       ingress: {
+        ...migratedIngress,
         [hostname]: nextEntry,
       },
     })
@@ -242,7 +261,7 @@ export const addPublicHostname = sdk.Action.withInput(
             dnsCreated = true
           } else {
             dnsFailureDetail = summarizeDnsRouteFailure(
-              `${result.stderr || ''}\n${result.stdout || ''}`,
+              `${result.stderr?.toString() ?? ''}\n${result.stdout?.toString() ?? ''}`,
             )
             console.error(
               `DNS route creation failed for ${hostname}: ${dnsFailureDetail}. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,

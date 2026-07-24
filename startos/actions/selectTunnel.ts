@@ -2,6 +2,7 @@ import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
 import { runCf } from '../cfRunner'
 import { i18n } from '../i18n'
+import { metricsHostId, metricsInterfaceId, metricsPort } from '../interfaces'
 
 const { InputSpec, Value, Variants } = sdk
 
@@ -120,12 +121,14 @@ export const selectTunnel = sdk.Action.withInput(
       // Infer server name from mDNS for new tunnel default
       let serverName: string | null = null
       try {
-        const mdnsUrl = await sdk.serviceInterface
+        const mdnsUrl = await sdk.host
           .getOwn(
             effects!,
-            'metrics',
-            (iface) =>
-              iface?.addressInfo?.nonLocal
+            metricsHostId,
+            (host) =>
+              host?.bindings[metricsPort]?.interfaces[
+                metricsInterfaceId
+              ]?.addressInfo?.nonLocal
                 .filter({ kind: 'mdns' })
                 ?.format()[0],
           )

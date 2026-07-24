@@ -34,7 +34,7 @@ Upstream repo: <https://github.com/cloudflare/cloudflared>
 
 ## Image and Container Runtime
 
-- Base image: `cloudflare/cloudflared:2026.3.0` copied into `debian:12-slim`
+- Upstream image: `cloudflare/cloudflared`, copied into `debian:12-slim`
 - Architectures: `x86_64`, `aarch64` (aarch64 emulated if missing)
 - Entrypoint: `cloudflared tunnel --credentials-file /root/.cloudflared/<tunnel-id>.json run <tunnel-id>`
 - Autoupdate disabled via `--no-autoupdate`
@@ -43,12 +43,12 @@ Upstream repo: <https://github.com/cloudflare/cloudflared>
 
 All persistent data is stored in the `main` volume:
 
-| Path | Contents |
-|---|---|
-| `/root/data/start9/config.yaml` | Package store with selected tunnel, logged-in DNS zones, and managed routes |
-| `/root/data/start9/login-url.txt` | Temporary Cloudflare authorization URL during login flow |
-| `/root/data/.cloudflared/zone-<zone-id>.pem` | Zone-specific Cloudflare origin certificate |
-| `/root/data/.cloudflared/<tunnel-id>.json` | Tunnel credentials file used to run cloudflared |
+| Path                                         | Contents                                                                    |
+| -------------------------------------------- | --------------------------------------------------------------------------- |
+| `/root/data/start9/config.yaml`              | Package store with selected tunnel, logged-in DNS zones, and managed routes |
+| `/root/data/start9/login-url.txt`            | Temporary Cloudflare authorization URL during login flow                    |
+| `/root/data/.cloudflared/zone-<zone-id>.pem` | Zone-specific Cloudflare origin certificate                                 |
+| `/root/data/.cloudflared/<tunnel-id>.json`   | Tunnel credentials file used to run cloudflared                             |
 
 ## Installation and First-Run Flow
 
@@ -66,42 +66,48 @@ No manual token or credentials-file management is required.
 - Tunnel ingress is managed through the Cloudflare API.
 - After selecting a tunnel, the package retrieves the credentials file automatically with `cloudflared tunnel token --cred-file ...`.
 - DNS record management uses the zone-specific origin certificate for the selected zone.
-- If hostnames already exist on the tunnel in Cloudflare, use **Import Public Hostnames** before making further edits in StartOS so those routes are brought into the package store.
+- Existing dashboard-managed routes and advanced tunnel settings are preserved when StartOS changes one of its managed hostnames.
+- Use **Import Public Hostnames** when you also want a compatible existing route to appear in StartOS and follow its service binding.
 
 ## Network Access and Interfaces
 
-- **Metrics** - Prometheus metrics endpoint at `http://cloudflared.startos:20241/metrics` (internal only)
+- **Metrics** - Prometheus metrics endpoint on internal loopback port 20241
 - All public traffic is proxied through the Cloudflare edge. No inbound ports need to be opened on your router.
 
 ## Actions
 
-| Action | When available | Purpose |
-|---|---|---|
-| Login to Cloudflare / Add DNS Zone | Always | Start the Cloudflare login flow and authorize one DNS zone at a time |
-| Select Tunnel | When at least one zone is configured | Choose an existing tunnel or create a new one |
-| Remove DNS Zone | When zones exist | Remove a DNS zone from this package without deleting existing Cloudflare records |
-| Import Public Hostnames | Always | Import existing Cloudflare tunnel hostnames into the StartOS-managed route list |
-| Managed Public Routes | Always | Show the selected tunnel, managed DNS zones, and application routes |
+| Action                             | When available                       | Purpose                                                                          |
+| ---------------------------------- | ------------------------------------ | -------------------------------------------------------------------------------- |
+| Login to Cloudflare / Add DNS Zone | Always                               | Start the Cloudflare login flow and authorize one DNS zone at a time             |
+| Select Tunnel                      | When at least one zone is configured | Choose an existing tunnel or create a new one                                    |
+| Remove DNS Zone                    | When zones exist                     | Remove a DNS zone from this package without deleting existing Cloudflare records |
+| Import Public Hostnames            | Always                               | Import existing Cloudflare tunnel hostnames into the StartOS-managed route list  |
+| Managed Public Routes              | Always                               | Show the selected tunnel, managed DNS zones, and application routes              |
 
 ## URL Plugin
 
 Cloudflare Tunnel registers as a `url-v0` URL plugin. Any other installed service can add a public Cloudflare hostname directly from its StartOS URL list.
 
 **Adding a hostname:**
+
 - Open any service → URLs → Add URL → select Cloudflare Tunnel
 - Enter a subdomain and choose one of the logged-in DNS zones
 - The package updates the Cloudflare tunnel ingress configuration automatically
+- StartOS targets are stored by package, host, interface, and internal port; their live bridge address is re-resolved after installs or assigned-port changes
 - It also tries to create the DNS CNAME automatically
 - If the DNS step fails, the route is still added and the action returns the manual fallback: `hostname → <tunnelID>.cfargotunnel.com` (proxied)
 
 **Removing a hostname:**
+
 - Open the service → URLs → remove the Cloudflare URL
 - The package removes the ingress rule from the tunnel configuration
 - It also tries to delete the matching DNS record and returns a warning if manual cleanup is still needed
 
 **Importing existing dashboard routes:**
+
 - If routes already exist on the tunnel in Cloudflare, run **Import Public Hostnames**
 - Matching routes are added to the package store so StartOS can manage and display them
+- Routes that remain dashboard-managed are retained unchanged by StartOS route additions and removals
 
 ## Backups and Restore
 
@@ -109,7 +115,7 @@ The entire `main` volume is backed up, including zone certificates, tunnel crede
 
 ## Health Checks
 
-- **Cloudflare tunnel** - polls `http://cloudflared.startos:20241/metrics`
+- **Cloudflare tunnel** - polls the local metrics endpoint on port 20241
 - The service is considered healthy when the metrics endpoint responds successfully
 
 ## Dependencies
@@ -125,10 +131,11 @@ None.
 
 1. **One selected tunnel per package instance** - this package runs one cloudflared tunnel at a time.
 2. **No tunnel management UI** - tunnels are selected or created through StartOS actions, not a web UI. For advanced tunnel settings, use the Cloudflare Zero Trust dashboard.
-3. **Import before editing dashboard-managed routes** - if routes already exist in the Cloudflare dashboard, import them into StartOS first so later edits here do not overwrite unknown entries.
+3. **Dashboard routes are preserved** - StartOS reads and merges the complete live tunnel configuration before each update. Import a compatible route only if you want StartOS to manage and display it.
 4. **DNS automation can still need manual fallback** - if a DNS record already exists or Cloudflare rejects the change, the package returns the manual CNAME fallback instead of silently failing.
 5. **Autoupdate disabled** - `--no-autoupdate` is set; updates are delivered via new package versions.
 6. **Metrics endpoint is internal only** - the Prometheus metrics endpoint is not proxied through the tunnel.
+7. **Upgrade repair** - beta.9-era `STARTOS`/nullable admin identities and `.startos` targets are migrated to `start-os` / `admin` / `admin-ui`. Resolvable legacy dashboard routes are adopted without removing unrelated routes. If a target is ambiguous or the Cloudflare API is unavailable, no remote configuration is written and the package creates a **Repair Cloudflare Routes** task.
 
 ---
 
@@ -136,8 +143,7 @@ None.
 
 ```yaml
 package_id: cloudflared
-upstream_version: 2026.3.0
-image: cloudflare/cloudflared:2026.3.0
+image: cloudflare/cloudflared
 architectures: [x86_64, aarch64]
 volumes:
   main:

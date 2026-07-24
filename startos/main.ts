@@ -16,7 +16,7 @@ export const main = sdk.setupMain(async ({ effects }) => {
   const credFile = `/root/.cloudflared/${tunnelId}.json`
 
   return sdk.Daemons.of(effects).addDaemon('primary', {
-    subcontainer: await sdk.SubContainer.of(
+    subcontainer: sdk.SubContainer.of(
       effects,
       {
         imageId: 'main',
@@ -54,14 +54,10 @@ export const main = sdk.setupMain(async ({ effects }) => {
     ready: {
       display: i18n('Cloudflare tunnel'),
       fn: () =>
-        sdk.healthCheck.checkWebUrl(
-          effects,
-          'http://cloudflared.startos:20241/metrics',
-          {
-            successMessage: i18n('Cloudflare tunnel is running'),
-            errorMessage: i18n('Cloudflare tunnel is not running'),
-          },
-        ),
+        sdk.healthCheck.checkWebUrl(effects, 'http://127.0.0.1:20241/metrics', {
+          successMessage: i18n('Cloudflare tunnel is running'),
+          errorMessage: i18n('Cloudflare tunnel is not running'),
+        }),
     },
     requires: [],
   })

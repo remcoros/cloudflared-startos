@@ -4,7 +4,7 @@ import { CLOUDFLARED_VERSION } from '../versions'
 export const manifest = setupManifest({
   id: 'cloudflared',
   title: 'Cloudflare Tunnel',
-  license: 'Apache 2.0',
+  license: 'Apache-2.0',
   packageRepo: 'https://github.com/remcoros/cloudflared-startos',
   upstreamRepo: 'https://github.com/cloudflare/cloudflared',
   marketingUrl: 'https://cloudflare.com/',

@@ -1,36 +1,21 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { fetchIngressFromApi, summarizeCloudflareError } from '../cfApi'
+import {
+  CloudflareIngressRule,
+  fetchIngressFromApi,
+  summarizeCloudflareError,
+} from '../cfApi'
 import { i18n } from '../i18n'
+import {
+  associateMigratedIngressWithZones,
+  isWholeHostnameRule,
+  parseLegacyServiceTarget,
+  StableIngress,
+  updateCloudflareIngress,
+} from '../init/reconcileIngress'
 
-/**
- * Parse a cloudflared service URL of the form http://<host>:<port>
- * and return the packageId + internalPort if it matches a StartOS service pattern.
- *
- * StartOS service hostnames look like:
- *   http://<packageId>.startos:<port>  (regular services)
- *   http://startos:<port>              (STARTOS itself)
- */
-function parseServiceUrl(
-  service: string,
-): { packageId: string | null; internalPort: number } | null {
-  try {
-    const url = new URL(service)
-    const port = Number(url.port)
-    if (!port) return null
-
-    const host = url.hostname
-    if (host === 'startos') {
-      return { packageId: null, internalPort: port }
-    }
-    if (host.endsWith('.startos')) {
-      const packageId = host.slice(0, -'.startos'.length)
-      return { packageId, internalPort: port }
-    }
-    return null
-  } catch {
-    return null
-  }
+function normalizedHostname(hostname: string) {
+  return hostname.trim().toLowerCase()
 }
 
 export const importPublicHostnames = sdk.Action.withoutInput(
@@ -63,30 +48,37 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       }
     }
 
-    // Need at least one zone to make API calls
-    const firstZone = Object.values(conf.zones ?? {}).find(Boolean)
-    if (!firstZone) {
+    const tunnelZone = Object.values(conf.zones ?? {}).find(
+      (zone) =>
+        zone &&
+        (!conf.tunnel?.accountId || zone.accountId === conf.tunnel.accountId),
+    )
+    if (!tunnelZone) {
       return {
         version: '1',
         title: i18n('No Zone Configured'),
         message: i18n(
-          'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.',
+          'Login to a Cloudflare DNS zone in the same account as the selected tunnel, then try again.',
         ),
         result: null,
       }
     }
 
     const existingHostnames = new Set(
-      Object.keys(conf.ingress ?? {}).filter((h) => !!conf.ingress?.[h]),
+      Object.keys(conf.ingress ?? {})
+        .filter((hostname) => !!conf.ingress?.[hostname])
+        .map(normalizedHostname),
     )
 
     // Fetch all ingress rules from Cloudflare
-    let cfRules: Array<{ hostname: string; service: string }>
+    let cfRules: Array<
+      CloudflareIngressRule & { hostname: string; service: string }
+    >
     try {
       cfRules = await fetchIngressFromApi(
-        firstZone.accountId,
+        tunnelZone.accountId,
         conf.tunnel.id,
-        firstZone.apiToken,
+        tunnelZone.apiToken,
       )
     } catch (error) {
       const summary = summarizeCloudflareError(error)
@@ -102,25 +94,16 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     }
 
     // Only consider rules not already tracked locally
-    const newRules = cfRules.filter((r) => !existingHostnames.has(r.hostname))
-
-    if (newRules.length === 0) {
-      return {
-        version: '1',
-        title: i18n('Import Public Hostnames'),
-        message: i18n(
-          'No new public hostnames found in Cloudflare that are not already tracked.',
-        ),
-        result: null,
-      }
-    }
+    const newRules = cfRules.filter(
+      (rule) => !existingHostnames.has(normalizedHostname(rule.hostname)),
+    )
 
     // Get all installed packages and their interfaces
     const packageIds = await effects.getInstalledPackages()
     const interfaceMap: Map<
       string,
       {
-        packageId: string | null
+        packageId: string
         interfaceId: string
         hostId: string
         internalPort: number
@@ -136,14 +119,12 @@ export const importPublicHostnames = sdk.Action.withoutInput(
           const { hostId, internalPort } = iface.addressInfo
           const key = `${pkgId}:${internalPort}`
           if (!interfaceMap.has(key)) interfaceMap.set(key, [])
-          interfaceMap
-            .get(key)!
-            .push({
-              packageId: pkgId,
-              interfaceId: ifaceId,
-              hostId,
-              internalPort,
-            })
+          interfaceMap.get(key)!.push({
+            packageId: pkgId,
+            interfaceId: ifaceId,
+            hostId,
+            internalPort,
+          })
         }
       } catch {
         // package may not be running / no interfaces yet — skip
@@ -160,7 +141,7 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     const ingressUpdates: Record<
       string,
       {
-        packageId: string | null
+        packageId: string
         hostId: string
         interfaceId: string
         internalPort: number
@@ -170,54 +151,63 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     > = {}
 
     for (const rule of newRules) {
+      if (!isWholeHostnameRule(rule)) {
+        skipped.push(
+          `${rule.hostname} (path-specific routes remain managed in Cloudflare)`,
+        )
+        continue
+      }
+
       // Only import hostnames that belong to a zone we know about
-      const matchedZone = knownZones.find(
-        ([, z]) =>
-          rule.hostname.endsWith(`.${z.zoneName}`) ||
-          rule.hostname === z.zoneName,
-      )
+      const matchedZone = knownZones.find(([, zone]) => {
+        const hostname = normalizedHostname(rule.hostname)
+        const zoneName = normalizedHostname(zone.zoneName)
+        return hostname.endsWith(`.${zoneName}`) || hostname === zoneName
+      })
       if (!matchedZone) {
         skipped.push(`${rule.hostname} (not in any configured zone)`)
         continue
       }
       const zoneId = matchedZone[0]
 
-      const parsed = parseServiceUrl(rule.service)
+      const parsed = parseLegacyServiceTarget(rule.service)
       if (!parsed) {
         skipped.push(`${rule.hostname} (unrecognised service: ${rule.service})`)
         continue
       }
 
       const { packageId, internalPort } = parsed
-      const key = packageId
-        ? `${packageId}:${internalPort}`
-        : `cloudflared:${internalPort}` // STARTOS itself unlikely but handled
+      const key = `${packageId}:${internalPort}`
 
       let match:
         | {
-            packageId: string | null
+            packageId: string
             interfaceId: string
             hostId: string
             internalPort: number
           }
         | undefined
 
-      if (packageId) {
+      if (packageId !== 'start-os') {
         const candidates = interfaceMap.get(key)
-        match = candidates?.[0] // take the first matching interface for this package+port
+        const hostIds = new Set(
+          candidates?.map((candidate) => candidate.hostId),
+        )
+        if (hostIds.size === 1) match = candidates?.[0]
       }
 
-      if (!match && packageId) {
+      if (!match && packageId !== 'start-os') {
+        const candidates = interfaceMap.get(key)
         skipped.push(
-          `${rule.hostname} (no matching interface found for ${packageId}:${internalPort})`,
+          `${rule.hostname} (${candidates?.length ? 'multiple matching interfaces' : 'no matching interface found'} for ${packageId}:${internalPort})`,
         )
         continue
       }
 
       ingressUpdates[rule.hostname] = {
-        packageId: packageId ?? null,
-        hostId: match?.hostId ?? 'main',
-        interfaceId: match?.interfaceId ?? 'main',
+        packageId,
+        hostId: match?.hostId ?? 'admin',
+        interfaceId: match?.interfaceId ?? 'admin-ui',
         internalPort,
         service: rule.service,
         zoneId,
@@ -225,8 +215,79 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       imported++
     }
 
-    if (imported > 0) {
-      await store.merge(effects, { ingress: ingressUpdates })
+    const currentEntries = Object.entries(conf.ingress ?? {}).filter(
+      (item): item is [string, NonNullable<(typeof item)[1]>] => !!item[1],
+    )
+    const upserts: Record<string, StableIngress> = Object.fromEntries([
+      ...currentEntries.map(([hostname, entry]) => [
+        hostname,
+        {
+          packageId: entry.packageId,
+          hostId: entry.hostId,
+          interfaceId: entry.interfaceId,
+          internalPort: entry.internalPort,
+          zoneId: entry.zoneId,
+        },
+      ]),
+      ...Object.entries(ingressUpdates).map(([hostname, entry]) => [
+        hostname,
+        {
+          packageId: entry.packageId,
+          hostId: entry.hostId,
+          interfaceId: entry.interfaceId,
+          internalPort: entry.internalPort,
+          zoneId: entry.zoneId,
+        },
+      ]),
+    ])
+    const expectedServices = Object.fromEntries([
+      ...currentEntries.map(([hostname, entry]) => [hostname, entry.service]),
+      ...Object.entries(ingressUpdates).map(([hostname, entry]) => [
+        hostname,
+        entry.service,
+      ]),
+    ])
+
+    let reconciled = false
+    try {
+      // Update Cloudflare first. Local ownership is recorded only after the
+      // complete preservation-aware update succeeds.
+      const result = await updateCloudflareIngress(
+        effects,
+        {
+          accountId: tunnelZone.accountId,
+          tunnelId: conf.tunnel.id,
+          apiToken: tunnelZone.apiToken,
+        },
+        upserts,
+        [],
+        expectedServices,
+      )
+      reconciled = result.updated
+      await store.merge(effects, {
+        tunnel: { ...conf.tunnel, accountId: tunnelZone.accountId },
+        ingress: {
+          ...associateMigratedIngressWithZones(
+            result.migratedIngress,
+            conf.zones,
+          ),
+          ...result.ingress,
+        },
+        repairRequired: false,
+        repairMessage: null,
+      })
+      await sdk.action.clearTask(effects, 'repair-cloudflare-routes')
+    } catch (error) {
+      const summary = summarizeCloudflareError(error)
+      console.error(
+        `Failed to import and reconcile Cloudflare routes: ${summary}`,
+      )
+      return {
+        version: '1',
+        title: 'Cloudflare Import Failed',
+        message: `Could not safely import and update the Cloudflare routes. No local routes were imported. ${summary}`,
+        result: null,
+      }
     }
 
     const lines: string[] = []
@@ -236,6 +297,7 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       )
     if (skipped.length > 0)
       lines.push(`Skipped ${skipped.length}: ${skipped.join('; ')}`)
+    if (reconciled) lines.push('Updated legacy routes in Cloudflare.')
 
     return {
       version: '1',
