@@ -74,15 +74,11 @@ async function resolveService(
   entry: StableIngress,
   reactive: boolean,
 ) {
-  const osIp = await sdk.getOsIp(effects)
-  const address = sdk.host.get(
-    effects,
-    { packageId: entry.packageId, hostId: entry.hostId },
-    (host) => {
-      const port = host?.bindings[entry.internalPort]?.net.assignedPort
-      return port == null ? null : `${osIp}:${port}`
-    },
-  )
+  const address = sdk.host.getBridgeAddress(effects, {
+    packageId: entry.packageId,
+    hostId: entry.hostId,
+    internalPort: entry.internalPort,
+  })
   const value = reactive ? await address.const() : await address.once()
   return value ? `http://${value}` : null
 }

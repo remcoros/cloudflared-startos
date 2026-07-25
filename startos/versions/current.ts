@@ -1,18 +1,18 @@
 import { VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.7.3:0',
+  version: '2026.7.3:1',
   releaseNotes: {
     en_US:
-      'Updates cloudflared to 2026.7.3 with QUIC precheck improvements and dependency security fixes. Full changes: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+      'Updates Start SDK to 2.0.9, deduplicates SDK copies in package dependencies, and resolves connected service addresses more reliably.',
     es_ES:
-      'Actualiza cloudflared a 2026.7.3 con mejoras en las comprobaciones previas de QUIC y correcciones de seguridad en dependencias. Cambios completos: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+      'Actualiza Start SDK a 2.0.9, elimina copias duplicadas del SDK en las dependencias del paquete y resuelve de forma más fiable las direcciones de los servicios conectados.',
     de_DE:
-      'Aktualisiert cloudflared auf 2026.7.3 mit verbesserten QUIC-Vorabprüfungen und Sicherheitskorrekturen für Abhängigkeiten. Vollständige Änderungen: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+      'Aktualisiert das Start SDK auf 2.0.9, entfernt doppelte SDK-Kopien in den Paketabhängigkeiten und ermittelt die Adressen verbundener Dienste zuverlässiger.',
     pl_PL:
-      'Aktualizuje cloudflared do wersji 2026.7.3, dodając ulepszenia wstępnych kontroli QUIC i poprawki bezpieczeństwa zależności. Pełna lista zmian: https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+      'Aktualizuje Start SDK do wersji 2.0.9, usuwa zduplikowane kopie SDK z zależności pakietu i pewniej ustala adresy połączonych usług.',
     fr_FR:
-      'Met à jour cloudflared vers 2026.7.3 avec des améliorations des vérifications préalables QUIC et des correctifs de sécurité pour les dépendances. Modifications complètes : https://github.com/cloudflare/cloudflared/compare/2026.6.1...2026.7.3',
+      'Met à jour Start SDK vers la version 2.0.9, déduplique les copies du SDK dans les dépendances du paquet et détermine plus fiablement les adresses des services connectés.',
   },
   migrations: {
     up: async ({ effects }) => {},
