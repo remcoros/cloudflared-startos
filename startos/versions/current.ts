@@ -1,18 +1,18 @@
 import { VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.7.3:1',
+  version: '2026.8.1:1',
   releaseNotes: {
     en_US:
-      'Updates Start SDK to 2.0.9, deduplicates SDK copies in package dependencies, and resolves connected service addresses more reliably.',
+      'Update cloudflared to 2026.8.1',
     es_ES:
-      'Actualiza Start SDK a 2.0.9, elimina copias duplicadas del SDK en las dependencias del paquete y resuelve de forma más fiable las direcciones de los servicios conectados.',
+      'Actualiza cloudflared a 2026.8.1',
     de_DE:
-      'Aktualisiert das Start SDK auf 2.0.9, entfernt doppelte SDK-Kopien in den Paketabhängigkeiten und ermittelt die Adressen verbundener Dienste zuverlässiger.',
+      'Aktualisiert cloudflared auf 2026.8.1',
     pl_PL:
-      'Aktualizuje Start SDK do wersji 2.0.9, usuwa zduplikowane kopie SDK z zależności pakietu i pewniej ustala adresy połączonych usług.',
+      'Aktualizuje cloudflared do wersji 2026.8.1',
     fr_FR:
-      'Met à jour Start SDK vers la version 2.0.9, déduplique les copies du SDK dans les dépendances du paquet et détermine plus fiablement les adresses des services connectés.',
+      'Met à jour cloudflared vers la version 2026.8.1',
   },
   migrations: {
     up: async ({ effects }) => {},
@@ -20,4 +20,4 @@ export const current = VersionInfo.of({
   },
 })
 
-export const CLOUDFLARED_VERSION = '2026.7.3'
+export const CLOUDFLARED_VERSION = '2026.8.1'
