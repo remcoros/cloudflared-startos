@@ -1,13 +1,9 @@
 name: Tag and Release
 
-# Disabled — uncomment 'on:' block and remove 'on: workflow_dispatch' to enable auto-tagging on merge to master
 on:
-  workflow_dispatch:
-
-# on:
-#   push:
-#     branches: ['main']
-#     paths-ignore: ['*.md']
+  push:
+    branches: ['main']
+    paths-ignore: ['*.md']
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -18,7 +14,6 @@ jobs:
     uses: Start9Labs/start-technologies/.github/workflows/tagAndRelease.yml@master
     with:
       REFERENCE_REGISTRY: ${{ vars.REFERENCE_REGISTRY }}
-      # FREE_DISK_SPACE: true
       RELEASE_REGISTRY: ${{ vars.RELEASE_REGISTRY }}
       S3_S9PKS_BASE_URL: ${{ vars.S3_S9PKS_BASE_URL }}
     secrets:

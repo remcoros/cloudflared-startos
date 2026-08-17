@@ -23,7 +23,7 @@ export const removeZone = sdk.Action.withInput(
         'Existing DNS records and ingress rules in Cloudflare will NOT be deleted.',
       ),
       allowedStatuses: 'any',
-      group: 'Configuration',
+      group: i18n('Configuration'),
       visibility:
         count === 0 ? { disabled: i18n('No zones configured') } : 'enabled',
     }
@@ -43,12 +43,12 @@ export const removeZone = sdk.Action.withInput(
       }
       if (Object.keys(variants).length === 0) {
         variants['none'] = {
-          name: 'No zones configured',
+          name: i18n('No zones configured'),
           spec: InputSpec.of({}),
         }
       }
       return {
-        name: 'Zone',
+        name: i18n('Zone'),
         default: Object.keys(variants)[0],
         disabled: false,
         variants: Variants.of(variants),
@@ -65,7 +65,7 @@ export const removeZone = sdk.Action.withInput(
     // Remove all ingress entries for this zone
     const conf = await store.read().once()
     if (!conf) {
-      throw new Error('Cloudflared configuration is unavailable.')
+      throw new Error(i18n('Cloudflared configuration is unavailable.'))
     }
     const nextIngress = { ...conf.ingress }
     for (const [hostname, entry] of Object.entries(conf.ingress ?? {})) {

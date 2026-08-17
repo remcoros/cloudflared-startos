@@ -31,7 +31,7 @@ export const cloudflareLogin = sdk.Action.withoutInput(
       ),
       warning: null,
       allowedStatuses: 'any',
-      group: 'Configuration',
+      group: i18n('Configuration'),
       visibility: 'enabled',
     }
   },
@@ -82,7 +82,9 @@ export const cloudflareLogin = sdk.Action.withoutInput(
         .trim()
       if (activeSession !== sessionId) {
         throw new Error(
-          'Cloudflare login was restarted by a newer request. Use the newest login action result.',
+          i18n(
+            'Cloudflare login was restarted by a newer request. Use the newest login action result.',
+          ),
         )
       }
 
@@ -93,9 +95,10 @@ export const cloudflareLogin = sdk.Action.withoutInput(
         if (url.startsWith('https://dash.cloudflare.com')) {
           return {
             version: '1',
-            title: 'Cloudflare Authorization',
-            message:
+            title: i18n('Cloudflare Authorization'),
+            message: i18n(
               'Visit the URL below to authorize. After authorizing, DNS routes will be created automatically when you add a public hostname.',
+            ),
             result: {
               type: 'single',
               value: url,
@@ -111,7 +114,9 @@ export const cloudflareLogin = sdk.Action.withoutInput(
     }
 
     throw new Error(
-      'Timed out waiting for Cloudflare auth URL. Check the service logs.',
+      i18n(
+        'Timed out waiting for the Cloudflare authorization URL. Check the service logs.',
+      ),
     )
   },
 )

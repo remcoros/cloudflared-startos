@@ -75,7 +75,12 @@ function getZoneGroups(
       ? zoneRoutes.map(([hostname, entry]) =>
           group(hostname, [
             single(i18n('Public URL'), `https://${hostname}`, null, true),
-            single(i18n('Package'), entry.packageId ?? i18n('StartOS Server')),
+            single(
+              i18n('Package'),
+              entry.packageId === 'start-os'
+                ? i18n('StartOS Server')
+                : entry.packageId,
+            ),
             single(i18n('Interface ID'), entry.interfaceId),
             single(i18n('Internal Target'), entry.service, null, true),
           ]),
@@ -87,7 +92,7 @@ function getZoneGroups(
           ),
         ]
 
-    return group(`${i18n('DNS Zone')}: ${zone.zoneName}`, [
+    return group(i18n('DNS Zone: ${name}', { name: zone.zoneName }), [
       single(i18n('Zone ID'), zone.zoneId, null, true),
       ...routeGroups,
     ])
@@ -104,7 +109,7 @@ export const managedOverview = sdk.Action.withoutInput(
     ),
     warning: null,
     allowedStatuses: 'any',
-    group: 'Information',
+    group: i18n('Information'),
     visibility: 'enabled',
   }),
 

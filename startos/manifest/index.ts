@@ -5,7 +5,7 @@ export const manifest = setupManifest({
   id: 'cloudflared',
   title: 'Cloudflare Tunnel',
   license: 'Apache-2.0',
-  packageRepo: 'https://github.com/remcoros/cloudflared-startos',
+  packageRepo: 'https://github.com/Start9-Community/cloudflared-startos',
   upstreamRepo: 'https://github.com/cloudflare/cloudflared',
   marketingUrl: 'https://cloudflare.com/',
   donationUrl: null,

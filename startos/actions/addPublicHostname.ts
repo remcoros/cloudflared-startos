@@ -14,15 +14,19 @@ function summarizeDnsRouteFailure(output: string): string {
   const trimmed = output.trim()
   const lower = trimmed.toLowerCase()
 
-  if (!trimmed) return 'Cloudflare did not return a detailed DNS error.'
+  if (!trimmed) return i18n('Cloudflare did not return a detailed DNS error.')
   if (lower.includes('already exists')) {
-    return 'Cloudflare reports that a DNS record for this hostname already exists.'
+    return i18n(
+      'Cloudflare reports that a DNS record for this hostname already exists.',
+    )
   }
   if (lower.includes('authentication') || lower.includes('unauthorized')) {
-    return 'Cloudflare rejected the DNS update because authentication failed.'
+    return i18n(
+      'Cloudflare rejected the DNS update because authentication failed.',
+    )
   }
   if (lower.includes('not found')) {
-    return 'Cloudflare could not find the requested tunnel or DNS zone.'
+    return i18n('Cloudflare could not find the requested tunnel or DNS zone.')
   }
 
   const lastLine = trimmed.split('\n').filter(Boolean).at(-1) ?? trimmed
@@ -149,9 +153,10 @@ export const addPublicHostname = sdk.Action.withInput(
     if (conf.tunnel.accountId && zone.accountId !== conf.tunnel.accountId) {
       return {
         version: '1',
-        title: 'Cloudflare Account Mismatch',
-        message:
+        title: i18n('Cloudflare Account Mismatch'),
+        message: i18n(
           'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
+        ),
         result: null,
       }
     }
@@ -193,8 +198,11 @@ export const addPublicHostname = sdk.Action.withInput(
       )
       return {
         version: '1',
-        title: 'Cloudflare Update Failed',
-        message: `Could not update the Cloudflare tunnel configuration for ${hostname}. ${summary}`,
+        title: i18n('Cloudflare Update Failed'),
+        message: i18n(
+          'Could not update the Cloudflare tunnel configuration for ${hostname}. ${detail}',
+          { hostname, detail: summary },
+        ),
         result: null,
       }
     }
@@ -270,20 +278,30 @@ export const addPublicHostname = sdk.Action.withInput(
         },
       )
     } else {
-      dnsFailureDetail = 'No zone certificate is available for this zone.'
+      dnsFailureDetail = i18n('No zone certificate is available for this zone.')
       console.info(
         `No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
       )
     }
 
+    const target = `${tunnelId}.cfargotunnel.com`
     return {
       version: '1',
       title: i18n('Public Hostname Added'),
       message: dnsCreated
-        ? `${hostname} is now routed to this service. ${i18n('DNS record created automatically.')}`
+        ? i18n(
+            '${hostname} is now routed to this service. The DNS record was created automatically.',
+            { hostname },
+          )
         : dnsFailureDetail
-          ? `${hostname} is now routed to this service, but automatic DNS creation failed: ${dnsFailureDetail} ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`
-          : `${hostname} is now routed to this service. ${i18n('Add a CNAME record manually in the Cloudflare dashboard (proxied).')} ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+          ? i18n(
+              '${hostname} is now routed to this service, but the DNS record could not be created automatically: ${detail} Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
+              { hostname, detail: dnsFailureDetail, target },
+            )
+          : i18n(
+              '${hostname} is now routed to this service. Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
+              { hostname, target },
+            ),
       result: {
         type: 'single',
         value: `https://${hostname}`,

@@ -30,7 +30,7 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       'This will scan existing public hostnames from the Cloudflare tunnel and add URLs to matching installed services.',
     ),
     allowedStatuses: 'any',
-    group: 'Import',
+    group: i18n('Import'),
     visibility: 'enabled',
   }),
 
@@ -87,8 +87,11 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       )
       return {
         version: '1',
-        title: 'Cloudflare Import Failed',
-        message: `Could not read the Cloudflare tunnel configuration. ${summary}`,
+        title: i18n('Cloudflare Import Failed'),
+        message: i18n(
+          'Could not read the Cloudflare tunnel configuration. ${detail}',
+          { detail: summary },
+        ),
         result: null,
       }
     }
@@ -153,7 +156,10 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     for (const rule of newRules) {
       if (!isWholeHostnameRule(rule)) {
         skipped.push(
-          `${rule.hostname} (path-specific routes remain managed in Cloudflare)`,
+          i18n(
+            '${hostname} (path-specific routes remain managed in Cloudflare)',
+            { hostname: rule.hostname },
+          ),
         )
         continue
       }
@@ -165,14 +171,23 @@ export const importPublicHostnames = sdk.Action.withoutInput(
         return hostname.endsWith(`.${zoneName}`) || hostname === zoneName
       })
       if (!matchedZone) {
-        skipped.push(`${rule.hostname} (not in any configured zone)`)
+        skipped.push(
+          i18n('${hostname} (not in any configured zone)', {
+            hostname: rule.hostname,
+          }),
+        )
         continue
       }
       const zoneId = matchedZone[0]
 
       const parsed = parseLegacyServiceTarget(rule.service)
       if (!parsed) {
-        skipped.push(`${rule.hostname} (unrecognised service: ${rule.service})`)
+        skipped.push(
+          i18n('${hostname} (unrecognized service: ${service})', {
+            hostname: rule.hostname,
+            service: rule.service,
+          }),
+        )
         continue
       }
 
@@ -197,9 +212,13 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       }
 
       if (!match && packageId !== 'start-os') {
-        const candidates = interfaceMap.get(key)
         skipped.push(
-          `${rule.hostname} (${candidates?.length ? 'multiple matching interfaces' : 'no matching interface found'} for ${packageId}:${internalPort})`,
+          i18n(
+            interfaceMap.get(key)?.length
+              ? '${hostname} (multiple matching interfaces for ${target})'
+              : '${hostname} (no matching interface found for ${target})',
+            { hostname: rule.hostname, target: key },
+          ),
         )
         continue
       }
@@ -284,8 +303,11 @@ export const importPublicHostnames = sdk.Action.withoutInput(
       )
       return {
         version: '1',
-        title: 'Cloudflare Import Failed',
-        message: `Could not safely import and update the Cloudflare routes. No local routes were imported. ${summary}`,
+        title: i18n('Cloudflare Import Failed'),
+        message: i18n(
+          'Could not safely import and update the Cloudflare routes. No local routes were imported. ${detail}',
+          { detail: summary },
+        ),
         result: null,
       }
     }
@@ -293,11 +315,24 @@ export const importPublicHostnames = sdk.Action.withoutInput(
     const lines: string[] = []
     if (imported > 0)
       lines.push(
-        `Imported ${imported} hostname${imported === 1 ? '' : 's'}: ${Object.keys(ingressUpdates).join(', ')}`,
+        i18n(
+          imported === 1
+            ? 'Imported 1 public hostname: ${hostnames}'
+            : 'Imported ${count} public hostnames: ${hostnames}',
+          {
+            count: imported,
+            hostnames: Object.keys(ingressUpdates).join(', '),
+          },
+        ),
       )
     if (skipped.length > 0)
-      lines.push(`Skipped ${skipped.length}: ${skipped.join('; ')}`)
-    if (reconciled) lines.push('Updated legacy routes in Cloudflare.')
+      lines.push(
+        i18n('Skipped ${count}: ${details}', {
+          count: skipped.length,
+          details: skipped.join('; '),
+        }),
+      )
+    if (reconciled) lines.push(i18n('Updated legacy routes in Cloudflare.'))
 
     return {
       version: '1',
