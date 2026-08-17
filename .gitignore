@@ -1,8 +1,8 @@
 *.s9pk
-.vscode/
+startos/*.js
+node_modules/
 .DS_Store
-scripts/*.js
+.vscode/
 docker-images
-node_modules
-javascript/*
+javascript
 ncc-cache
