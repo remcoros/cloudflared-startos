@@ -11,12 +11,22 @@ export const repairRoutes = sdk.Action.withoutInput(
     ),
     warning: null,
     allowedStatuses: 'any',
-    group: 'Configuration',
+    group: i18n('Configuration'),
     visibility: 'enabled',
   }),
   async ({ effects }) => {
     try {
-      await reconcileIngressOnce(effects)
+      const { hasTunnel } = await reconcileIngressOnce(effects)
+      if (!hasTunnel) {
+        return {
+          version: '1',
+          title: i18n('No Tunnel Configured'),
+          message: i18n(
+            'There are no managed Cloudflare routes to repair until a tunnel is selected.',
+          ),
+          result: null,
+        }
+      }
       return {
         version: '1',
         title: i18n('Cloudflare Routes Repaired'),

@@ -26,6 +26,17 @@ CF_PID=''
 mkdir -p "$SESSION_CERT_DIR" "/root/data/.cloudflared" "$(dirname "$URL_FILE")"
 rm -f "$URL_FILE"
 
+# Only one login is ever current, so every other session directory is dead.
+# Reaping on the way in also recovers directories left by a run that was
+# signalled rather than exiting, which no exit handler can catch.
+for dir in "$SESSION_ROOT"/*/; do
+  [ -d "$dir" ] || continue
+  case "$dir" in
+    "$SESSION_HOME"/) continue ;;
+  esac
+  rm -rf "$dir"
+done
+
 cleanup() {
   rm -rf "$SESSION_HOME"
 }
@@ -41,7 +52,9 @@ is_current() {
   [ -f "$SESSION_FILE" ] && [ "$(cat "$SESSION_FILE" 2>/dev/null)" = "$SESSION_ID" ]
 }
 
+# A subcontainer teardown signals TERM; an untrapped signal skips the EXIT trap.
 trap cleanup EXIT
+trap 'cancel_login; exit 0' INT TERM
 
 # Start cloudflared login in an isolated HOME so only the active session can
 # publish the cert into the shared .cloudflared volume.

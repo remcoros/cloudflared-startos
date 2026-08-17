@@ -2,8 +2,8 @@ import { FileHelper } from '@start9labs/start-sdk'
 import { sdk } from '../sdk'
 
 /**
- * FileHelper for cert.pem - used only for .const() reactive watching.
- * When cert.pem is created/deleted, action metadata re-evaluates.
+ * Written by `cloudflared tunnel login`, never by this package. Read reactively
+ * so a completed login is picked up by init; see init/setupZones.ts.
  */
 export const certPem = FileHelper.string({
   base: sdk.volumes.main,

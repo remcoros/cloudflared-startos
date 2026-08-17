@@ -1,3 +1,5 @@
+import { i18n } from './i18n'
+
 const CF_API = 'https://api.cloudflare.com/client/v4'
 
 type CloudflareBody = {
@@ -139,14 +141,20 @@ export async function fetchTunnelConfig(
   const config = isRecord(data.result) ? data.result.config : null
   if (!isRecord(config)) {
     throw new Error(
-      `Cloudflare returned no usable configuration for tunnel ${tunnelId}. Refusing to replace it.`,
+      i18n(
+        'Cloudflare returned no usable configuration for tunnel ${tunnelId}. Refusing to replace it.',
+        { tunnelId },
+      ),
     )
   }
 
   const ingress = config.ingress
   if (!Array.isArray(ingress) || !ingress.every(isRecord)) {
     throw new Error(
-      `Cloudflare returned malformed ingress rules for tunnel ${tunnelId}. Refusing to replace them.`,
+      i18n(
+        'Cloudflare returned malformed ingress rules for tunnel ${tunnelId}. Refusing to replace them.',
+        { tunnelId },
+      ),
     )
   }
 
@@ -183,7 +191,10 @@ export async function updateTunnelConfig(
     if (JSON.stringify(latest) !== currentJson) {
       if (attempt === 2) {
         throw new Error(
-          `Cloudflare tunnel ${tunnelId} kept changing while preparing an update. Refusing to replace a newer configuration.`,
+          i18n(
+            'Cloudflare tunnel ${tunnelId} kept changing while preparing an update. Refusing to replace a newer configuration.',
+            { tunnelId },
+          ),
         )
       }
       current = latest
@@ -247,7 +258,7 @@ export async function deleteDnsRecord(
   apiToken: string,
 ): Promise<DeleteDnsRecordResult> {
   const listData = await fetchCloudflare(
-    `${CF_API}/zones/${zoneId}/dns_records?name=${hostname}&type=CNAME`,
+    `${CF_API}/zones/${zoneId}/dns_records?name=${encodeURIComponent(hostname)}&type=CNAME`,
     { headers: authHeaders(apiToken) },
     `Failed to list DNS records for ${hostname}`,
   )

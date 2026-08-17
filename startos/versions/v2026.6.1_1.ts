@@ -1,7 +1,7 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 import { i18n } from '../i18n'
 
-export const v2026_6_1_1 = VersionInfo.of({
+export const v_2026_6_1_1 = VersionInfo.of({
   version: '2026.6.1:1',
   releaseNotes: {
     en_US:

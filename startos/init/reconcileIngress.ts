@@ -60,7 +60,9 @@ function serviceWithAddress(url: URL, address: string) {
   const next = new URL(url.toString())
   const separator = address.lastIndexOf(':')
   if (separator < 1)
-    throw new Error(`Invalid StartOS bridge address: ${address}`)
+    throw new Error(
+      i18n('Invalid StartOS bridge address: ${address}', { address }),
+    )
   next.hostname = address.slice(0, separator)
   next.port = address.slice(separator + 1)
   const result = next.toString()
@@ -69,31 +71,20 @@ function serviceWithAddress(url: URL, address: string) {
     : result
 }
 
-async function resolveService(
-  effects: T.Effects,
-  entry: StableIngress,
-  reactive: boolean,
-) {
-  const address = sdk.host.getBridgeAddress(effects, {
-    packageId: entry.packageId,
-    hostId: entry.hostId,
-    internalPort: entry.internalPort,
-  })
-  const value = reactive ? await address.const() : await address.once()
+async function resolveService(effects: T.Effects, entry: StableIngress) {
+  const value = await sdk.host
+    .getBridgeAddress(effects, {
+      packageId: entry.packageId,
+      hostId: entry.hostId,
+      internalPort: entry.internalPort,
+    })
+    .once()
   return value ? `http://${value}` : null
-}
-
-export async function resolveIngressServiceOnce(
-  effects: T.Effects,
-  entry: StableIngress,
-) {
-  return resolveService(effects, entry, false)
 }
 
 async function resolveLegacyService(
   effects: T.Effects,
   target: LegacyServiceTarget,
-  reactive: boolean,
 ) {
   let hostId = 'admin'
   let interfaceId = 'admin-ui'
@@ -106,7 +97,10 @@ async function resolveLegacyService(
       })
     } catch {
       throw new Error(
-        `Could not inspect ${target.packageId} while migrating ${target.url.toString()}.`,
+        i18n('Could not inspect ${packageId} while migrating ${url}.', {
+          packageId: target.packageId,
+          url: target.url.toString(),
+        }),
       )
     }
 
@@ -120,12 +114,16 @@ async function resolveLegacyService(
     ]
 
     if (matchingHostIds.length !== 1) {
-      const reason =
-        matchingHostIds.length === 0
-          ? 'no matching interface exists'
-          : 'multiple matching interfaces exist'
       throw new Error(
-        `Cannot safely migrate ${target.url.toString()}: ${reason} for ${target.packageId}:${target.internalPort}. The live Cloudflare configuration was not changed.`,
+        i18n(
+          matchingHostIds.length === 0
+            ? 'Cannot safely migrate ${url}: no matching interface exists for ${target}. The live Cloudflare configuration was not changed.'
+            : 'Cannot safely migrate ${url}: multiple matching interfaces exist for ${target}. The live Cloudflare configuration was not changed.',
+          {
+            url: target.url.toString(),
+            target: `${target.packageId}:${target.internalPort}`,
+          },
+        ),
       )
     }
     hostId = matchingHostIds[0]
@@ -134,20 +132,19 @@ async function resolveLegacyService(
     )![0]
   }
 
-  const address = await resolveService(
-    effects,
-    {
-      packageId: target.packageId,
-      hostId,
-      interfaceId: target.packageId === 'start-os' ? 'admin-ui' : '',
-      internalPort: target.internalPort,
-      zoneId: '',
-    },
-    reactive,
-  )
+  const address = await resolveService(effects, {
+    packageId: target.packageId,
+    hostId,
+    interfaceId: target.packageId === 'start-os' ? 'admin-ui' : '',
+    internalPort: target.internalPort,
+    zoneId: '',
+  })
   if (!address) {
     throw new Error(
-      `Cannot resolve a StartOS bridge address for ${target.url.toString()}. The live Cloudflare configuration was not changed.`,
+      i18n(
+        'Cannot resolve a StartOS bridge address for ${url}. The live Cloudflare configuration was not changed.',
+        { url: target.url.toString() },
+      ),
     )
   }
 
@@ -187,7 +184,10 @@ function mergeIngressRules(
     )
     if (matches.length > 1) {
       throw new Error(
-        `Cloudflare has multiple whole-hostname rules for ${hostname}. Refusing to guess which route is managed; the live configuration was not changed.`,
+        i18n(
+          'Cloudflare has multiple whole-hostname rules for ${hostname}. Refusing to guess which route is managed; the live configuration was not changed.',
+          { hostname },
+        ),
       )
     }
   }
@@ -260,7 +260,10 @@ function assertMutationOwnership(
     )
     if (matches.length > 1) {
       throw new Error(
-        `Cloudflare has multiple whole-hostname rules for ${hostname}. Refusing to guess which route is managed; the live configuration was not changed.`,
+        i18n(
+          'Cloudflare has multiple whole-hostname rules for ${hostname}. Refusing to guess which route is managed; the live configuration was not changed.',
+          { hostname },
+        ),
       )
     }
     if (matches.length === 0) continue
@@ -273,7 +276,10 @@ function assertMutationOwnership(
       (expected === undefined || expected === null || actual !== expected)
     ) {
       throw new Error(
-        `The live Cloudflare route for ${hostname} no longer matches the StartOS-managed route. Refusing to overwrite or remove it; import or reconcile the route manually first.`,
+        i18n(
+          'The live Cloudflare route for ${hostname} no longer matches the StartOS-managed route. Refusing to overwrite or remove it; import or reconcile the route manually first.',
+          { hostname },
+        ),
       )
     }
   }
@@ -283,7 +289,6 @@ async function migrateLegacyRules(
   effects: T.Effects,
   rules: CloudflareIngressRule[],
   skipHostnames: Set<string>,
-  reactive: boolean,
 ) {
   const resolved = new Map<string, string>()
   const resolvedEntries = new Map<string, StableIngress>()
@@ -314,7 +319,7 @@ async function migrateLegacyRules(
     let service = resolved.get(cacheKey)
     let entry = resolvedEntries.get(cacheKey)
     if (!service) {
-      const result = await resolveLegacyService(effects, target, reactive)
+      const result = await resolveLegacyService(effects, target)
       service = result.service
       entry = result.entry
       resolved.set(cacheKey, result.service)
@@ -365,14 +370,16 @@ export async function updateCloudflareIngress(
   upserts: Record<string, StableIngress> = {},
   removeHostnames: string[] = [],
   expectedServices: Record<string, string | null> = {},
-  reactive = false,
 ) {
   const resolvedUpserts: Record<string, IngressEntry> = {}
   for (const [hostname, entry] of Object.entries(upserts)) {
-    const service = await resolveService(effects, entry, reactive)
+    const service = await resolveService(effects, entry)
     if (!service) {
       throw new Error(
-        `Could not resolve ${entry.packageId}/${entry.hostId}:${entry.internalPort} for ${hostname}.`,
+        i18n('Could not resolve ${target} for ${hostname}.', {
+          target: `${entry.packageId}/${entry.hostId}:${entry.internalPort}`,
+          hostname,
+        }),
       )
     }
     resolvedUpserts[hostname] = { ...entry, service }
@@ -404,7 +411,6 @@ export async function updateCloudflareIngress(
         effects,
         config.ingress,
         skipHostnames,
-        reactive,
       )
       migrated = migration.migrated
       migratedIngress = migration.ingress
@@ -438,14 +444,13 @@ async function reconcileConfig(
   conf: Pick<StoreType, 'tunnel' | 'zones'> & {
     ingress: Record<string, IngressEntry | null>
   },
-  reactive: boolean,
 ) {
   const entries = Object.entries(conf.ingress).filter(
     (item): item is [string, IngressEntry] => item[1] !== null,
   )
   if (!conf.tunnel) {
     await setRepairState(effects, false, null)
-    return { repaired: 0, migrated: 0, updated: false }
+    return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
   }
 
   const zone =
@@ -488,7 +493,6 @@ async function reconcileConfig(
       Object.fromEntries(
         entries.map(([hostname, entry]) => [hostname, entry.service]),
       ),
-      reactive,
     )
   } catch (error) {
     console.error(
@@ -519,6 +523,7 @@ async function reconcileConfig(
   )
   await sdk.action.clearTask(effects, 'repair-cloudflare-routes')
   return {
+    hasTunnel: true,
     repaired: entries.length + result.migrated,
     migrated: result.migrated,
     updated: result.updated,
@@ -527,21 +532,18 @@ async function reconcileConfig(
 
 export async function reconcileIngressOnce(effects: T.Effects) {
   const conf = await store.read().once()
-  if (!conf) return { repaired: 0, migrated: 0, updated: false }
-  return reconcileConfig(
-    effects,
-    {
-      tunnel: conf.tunnel,
-      zones: conf.zones,
-      ingress: Object.fromEntries(
-        Object.entries(conf.ingress).map(([hostname, entry]) => [
-          hostname,
-          entry,
-        ]),
-      ),
-    },
-    false,
-  )
+  if (!conf)
+    return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
+  return reconcileConfig(effects, {
+    tunnel: conf.tunnel,
+    zones: conf.zones,
+    ingress: Object.fromEntries(
+      Object.entries(conf.ingress).map(([hostname, entry]) => [
+        hostname,
+        entry,
+      ]),
+    ),
+  })
 }
 
 export const reconcileIngress = sdk.setupOnInit(async (effects) => {
@@ -560,7 +562,7 @@ export const reconcileIngress = sdk.setupOnInit(async (effects) => {
   if (!conf) return
 
   try {
-    await reconcileConfig(effects, conf, false)
+    await reconcileConfig(effects, conf)
   } catch (error) {
     console.error('Cloudflare route reconciliation failed:', error)
   }

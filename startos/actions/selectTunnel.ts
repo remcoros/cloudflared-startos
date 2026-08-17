@@ -40,7 +40,7 @@ function parseTunnelList(stdout: string): Array<{ id: string; name: string }> {
 const newTunnelSpec = (serverName: string | null) =>
   InputSpec.of({
     name: Value.text({
-      name: 'Tunnel Name',
+      name: i18n('Tunnel Name'),
       description: i18n('A name for your new Cloudflare tunnel.'),
       required: true,
       default: serverName,
@@ -63,28 +63,27 @@ export const selectTunnel = sdk.Action.withInput(
     const hasZone = state?.hasZone ?? false
     if (!hasZone) {
       return {
-        name: 'Select Tunnel',
+        name: i18n('Select Tunnel'),
         description: i18n('Login to Cloudflare first to configure a zone'),
         warning: null,
         allowedStatuses: 'any',
-        group: 'Configuration',
+        group: i18n('Configuration'),
         visibility: {
           disabled: i18n('Login to Cloudflare first to configure a zone'),
         },
       }
     }
     const current = state?.tunnelName
-    const nameLabel = current
-      ? `Cloudflare Tunnel: ${current}`
-      : i18n('Cloudflare Tunnel: Not selected')
     return {
-      name: nameLabel,
+      name: current
+        ? i18n('Cloudflare Tunnel: ${name}', { name: current })
+        : i18n('Cloudflare Tunnel: Not selected'),
       description: i18n(
         'Choose which Cloudflare tunnel this server runs. You can select an existing tunnel or create a new one.',
       ),
       warning: null,
       allowedStatuses: 'any',
-      group: 'Configuration',
+      group: i18n('Configuration'),
       visibility: 'enabled',
     }
   },
@@ -114,8 +113,9 @@ export const selectTunnel = sdk.Action.withInput(
       } catch (e) {
         const summary = e instanceof Error ? e.message : String(e)
         console.error(`Failed to list tunnels: ${summary}`)
-        tunnelLoadWarning =
-          'Could not load existing tunnels from Cloudflare. You can still create a new tunnel.'
+        tunnelLoadWarning = i18n(
+          'Could not load existing tunnels from Cloudflare. You can still create a new tunnel.',
+        )
       }
 
       // Infer server name from mDNS for new tunnel default
@@ -157,12 +157,12 @@ export const selectTunnel = sdk.Action.withInput(
 
       // 'Create new tunnel' always at the bottom
       variants['new'] = {
-        name: 'Create new tunnel',
+        name: i18n('Create new tunnel'),
         spec: newTunnelSpec(serverName),
       }
 
       return {
-        name: 'Tunnel',
+        name: i18n('Tunnel'),
         warning: tunnelLoadWarning,
         default: defaultId,
         disabled: false,
@@ -200,7 +200,7 @@ export const selectTunnel = sdk.Action.withInput(
 
     if (selection.selection === 'new') {
       const name = selection.value.name?.trim()
-      if (!name) throw new Error('Tunnel name is required.')
+      if (!name) throw new Error(i18n('Tunnel name is required.'))
 
       // Create the tunnel - response includes id and name
       const stdout = await runCf(
