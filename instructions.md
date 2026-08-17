@@ -1,42 +1,53 @@
-# Cloudflare Tunnel Instructions
+# Cloudflare Tunnel
 
-Cloudflare Tunnel (cloudflared) creates an outbound-only connection from your StartOS server to the Cloudflare edge network. This lets you expose services publicly via your own domain without opening inbound ports or changing your router.
+Before you start, you need a Cloudflare account with at least one domain already on Cloudflare DNS. This service cannot register a domain or move one for you.
 
-Routes managed by this service are kept pointed at the correct service on your StartOS server. Routes and advanced settings that you manage directly in Cloudflare are left in place. If Cloudflare cannot be updated safely, no changes are sent; use **Repair Cloudflare Routes** after correcting the problem.
+## Documentation
 
-## Requirements
+- [Cloudflare Tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/) — Cloudflare's own guide to what a tunnel is and what it can carry.
+- [Routing to a tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/routing-to-tunnel/) — the reference for public hostnames, DNS records, and per-route settings.
+- [cloudflared](https://github.com/cloudflare/cloudflared) — the upstream project this service runs.
 
-- A Cloudflare account
-- A domain managed by Cloudflare DNS
+## What you get on StartOS
 
-## First-time setup
+A running Cloudflare tunnel, plus the ability to put any of your other services on a public address of your own domain.
 
-1. Run the **Login to Cloudflare** action. A Cloudflare authorization URL will be returned.
-2. Open that URL in a browser, log in, and approve access for one DNS zone (domain).
-3. Repeat the login action if you want to manage additional DNS zones.
-4. Run **Cloudflare Tunnel** to choose an existing tunnel or create a new one.
-5. Once a tunnel is selected, the service will start automatically.
+- Traffic reaches your services through Cloudflare, over a connection your server opens outward. You do not open a port, forward anything on your router, or need a static IP.
+- Once a tunnel is set up, every other service on this server gets a **Cloudflare Tunnel** section in its address list, where you can hand it a subdomain.
+- Addresses you create here are re-pointed at their service every time Cloudflare Tunnel starts, so a reinstall that moves a service's internal port is fixed by a restart — or by running **Repair Cloudflare Routes**.
+- Routes and settings you create yourself in the Cloudflare dashboard are left alone.
 
-## Assigning a public address to a service
+## Getting set up
 
-Once a tunnel is selected and the service is running, you can assign a public Cloudflare subdomain to any service interface directly from that service's addresses page.
+1. Run **Login to Cloudflare**. It returns a Cloudflare authorization link.
+2. Open that link, sign in, and approve one domain. You can scan the QR code if you want to approve from your phone.
+3. Run **Cloudflare Tunnel** and either pick an existing tunnel or create a new one. A name is suggested for you.
+4. That's it — the tunnel connects on its own.
 
-1. Navigate to the service you want to expose publicly.
-2. Open the interface's addresses page.
-3. In the **Cloudflare Tunnel** addresses table, click **Add** to assign a subdomain.
-4. Enter a subdomain and select the DNS zone (domain) to use.
-5. Cloudflare Tunnel will route traffic from `subdomain.yourdomain.com` to that interface.
+To manage a second domain, run **Add DNS Zone** (the login action takes this name once you have one domain) and approve the next one. Each run authorizes exactly one domain.
 
-To remove an address, click the overflow menu on that row and select **Delete**.
+## Giving a service a public address
 
-Routes created directly in Cloudflare continue to work. Run **Import Public Hostnames** if you want compatible routes to appear in StartOS and stay connected to their selected services automatically.
+1. Open the service you want to reach publicly and go to the address list for the interface you want to expose.
+2. In the **Cloudflare Tunnel** section, choose **Add**.
+3. Enter a subdomain and pick which of your domains to put it under.
+4. The address appears in the list, and Cloudflare starts routing to it.
+
+To take an address down, use the overflow menu on its row and choose **Delete**. Both the tunnel route and the DNS record are removed.
+
+If the DNS record could not be created automatically, the result tells you exactly which record to add in the Cloudflare dashboard. Add it as a proxied CNAME and the address will start working.
 
 ## Actions
 
-- **Login to Cloudflare** - Authenticate with a Cloudflare DNS zone.
-- **Cloudflare Tunnel** - Choose or create a Cloudflare tunnel.
-- **Add DNS Zone** - Add another domain from Cloudflare.
-- **Remove DNS Zone** - Stop managing a domain without deleting its existing Cloudflare records.
-- **Import Public Hostnames** - Import existing hostname routes from Cloudflare.
-- **Managed Public Routes** - View the domains, tunnel, and public addresses managed here.
-- **Repair Cloudflare Routes** - Retry route updates after a connection or configuration problem.
+- **Login to Cloudflare** / **Add DNS Zone** — authorize a domain. Run it once per domain.
+- **Cloudflare Tunnel** — choose or create the tunnel this server runs.
+- **Remove DNS Zone** — stop managing a domain here. Its records and routes in Cloudflare are not deleted, so anything already working keeps working.
+- **Import Public Hostnames** — adopt addresses that already exist on the tunnel, so they show up on their services here and are managed from then on. Safe to run any time; it skips anything it already tracks and tells you what it left alone.
+- **Managed Public Routes** — see the tunnel, the domains, and every address managed here, with what each one points at.
+- **Repair Cloudflare Routes** — retry after a failed update. Run it once you've fixed what went wrong.
+
+## Limitations
+
+- An address created here points at your service over plain HTTP inside the server. A service that only speaks HTTPS on the port you pick cannot be published this way.
+- Switching to a different tunnel does not move addresses you already created — their DNS records still point at the old tunnel until you recreate them.
+- Addresses are re-pointed when Cloudflare Tunnel starts, not continuously. If a service's internal port moves while Cloudflare Tunnel is running, its address stops working until you restart Cloudflare Tunnel or run **Repair Cloudflare Routes**.
