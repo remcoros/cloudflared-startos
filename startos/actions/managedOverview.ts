@@ -17,6 +17,7 @@ function single(
     copyable,
     masked: false,
     qr: false,
+    launchable: false,
   }
 }
 

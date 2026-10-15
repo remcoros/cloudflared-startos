@@ -330,6 +330,9 @@ export const importPublicHostnames = sdk.Action.withoutInput(
         description: null,
         value: Object.keys(ingressUpdates).join('\n'),
         copyable: true,
+        qr: false,
+        masked: false,
+        filename: null,
       })
     }
     if (skipped.length > 0) {
@@ -347,6 +350,9 @@ export const importPublicHostnames = sdk.Action.withoutInput(
         description: null,
         value: skipped.join('\n'),
         copyable: true,
+        qr: false,
+        masked: false,
+        filename: null,
       })
     }
     if (reconciled) lines.push(i18n('Updated legacy routes in Cloudflare.'))
