@@ -37,5 +37,5 @@ verified, tried, and decided belongs in the commit message and the PR body.
 - **Keep the Dockerfile's `debian:13-slim` base; don't switch it to `FROM cloudflare/cloudflared`.** The upstream image is distroless, and `scripts/cf-login.sh` and every `SubContainer.exec` need `/bin/sh`.
 - **`add-public-hostname` and `delete-public-hostname` stay `visibility: 'hidden'`** — they are the `url-v0` plugin handshake, run from another service's address table with a platform-filled `urlPluginMetadata`.
 - **Route every tunnel-configuration change through `updateCloudflareIngress` (`startos/init/reconcileIngress.ts`).** Cloudflare's `PUT` replaces the whole configuration, so an ingress array built from the store alone deletes the user's dashboard-managed routes.
-- **Keep routes stored as `(packageId, hostId, internalPort)`, not a resolved origin URL** — re-resolving that triple on each init is what lets a route recover after its target's port changes. Resolution is deliberately not live (#2).
+- **Keep route-address subscriptions in the init handler and snapshot reads in actions.** Watch stable route targets; exclude resolved origins and repair flags so reconciliation's own writes cannot retrigger it.
 - **Never put a zone's API token in an action result, a task reason, or a log line.** It is decoded from `cert.pem` into the store and `zone-<zone-id>.pem`.

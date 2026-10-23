@@ -1,18 +1,18 @@
 import { IMPOSSIBLE, VersionInfo } from '@start9labs/start-sdk'
 
 export const current = VersionInfo.of({
-  version: '2026.10.3:0',
+  version: '2026.10.3:1',
   releaseNotes: {
     en_US:
-      'Updated cloudflared to 2026.10.3 with Go security updates and a fix for truncated messages larger than the read buffer. Refreshed the Debian 13.7 slim container base and updated the StartOS SDK. [Full upstream changelog](https://github.com/cloudflare/cloudflared/blob/2026.10.3/RELEASE_NOTES).',
+      'Managed Cloudflare routes now follow changes to a service’s assigned port automatically, without restarting the tunnel. Routes added while Cloudflare Tunnel is running are watched too.',
     es_ES:
-      'Actualizado cloudflared a 2026.10.3 con actualizaciones de seguridad de Go y una corrección para los mensajes truncados al superar el tamaño del búfer de lectura. Renovada la imagen base Debian 13.7 slim y actualizado el SDK de StartOS. [Registro completo de cambios del proyecto](https://github.com/cloudflare/cloudflared/blob/2026.10.3/RELEASE_NOTES).',
+      'Las rutas de Cloudflare gestionadas ahora siguen automáticamente los cambios del puerto asignado a un servicio, sin reiniciar el túnel. También se supervisan las rutas añadidas mientras Cloudflare Tunnel está en ejecución.',
     de_DE:
-      'cloudflared auf 2026.10.3 aktualisiert: Go-Sicherheitsupdates und eine Korrektur für abgeschnittene Nachrichten, die größer als der Lesepuffer sind. Die Containerbasis Debian 13.7 slim und das StartOS-SDK wurden aktualisiert. [Vollständiges Upstream-Änderungsprotokoll](https://github.com/cloudflare/cloudflared/blob/2026.10.3/RELEASE_NOTES).',
+      'Verwaltete Cloudflare-Routen folgen Änderungen am zugewiesenen Port eines Dienstes jetzt automatisch, ohne den Tunnel neu zu starten. Auch Routen, die während des Betriebs von Cloudflare Tunnel hinzugefügt werden, werden überwacht.',
     pl_PL:
-      'Zaktualizowano cloudflared do 2026.10.3: aktualizacje bezpieczeństwa Go i poprawka obcinania wiadomości większych niż bufor odczytu. Odświeżono bazowy obraz kontenera Debian 13.7 slim i zaktualizowano SDK StartOS. [Pełna lista zmian projektu](https://github.com/cloudflare/cloudflared/blob/2026.10.3/RELEASE_NOTES).',
+      'Zarządzane trasy Cloudflare automatycznie śledzą zmiany portu przypisanego do usługi, bez ponownego uruchamiania tunelu. Monitorowane są także trasy dodane podczas działania Cloudflare Tunnel.',
     fr_FR:
-      'Mise à jour de cloudflared vers 2026.10.3 avec des mises à jour de sécurité de Go et une correction des messages tronqués lorsqu’ils dépassent la taille du tampon de lecture. Actualisation de l’image de base Debian 13.7 slim et du SDK StartOS. [Journal complet des modifications du projet](https://github.com/cloudflare/cloudflared/blob/2026.10.3/RELEASE_NOTES).',
+      'Les routes Cloudflare gérées suivent désormais automatiquement les changements du port attribué à un service, sans redémarrer le tunnel. Les routes ajoutées pendant le fonctionnement de Cloudflare Tunnel sont également surveillées.',
   },
   migrations: {
     up: async ({ effects }) => {},
