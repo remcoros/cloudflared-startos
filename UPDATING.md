@@ -7,7 +7,7 @@ This package wraps Cloudflare's own `cloudflared` release. The Dockerfile copies
 - **cloudflared** ([cloudflare/cloudflared](https://github.com/cloudflare/cloudflared)) — fetch the latest release tag:
 
   ```sh
-  gh release view -R cloudflare/cloudflared --json tagName -q .tagName
+  gh api repos/cloudflare/cloudflared/releases --jq '.[] | select(.draft == false and .prerelease == false) | .tag_name' | sort -V | tail -1
   ```
 
   Release tags carry no leading `v`, and the tag is used verbatim as the image tag.
@@ -19,6 +19,12 @@ This package wraps Cloudflare's own `cloudflared` release. The Dockerfile copies
   ```
 
   The current pin lives in `startos/versions/current.ts` as `CLOUDFLARED_VERSION`. `startos/manifest/index.ts` reads it and passes `cloudflare/cloudflared:<version>` to the Dockerfile as the `CLOUDFLARED_IMAGE` build arg — there is no `dockerTag` field to edit.
+
+## Refreshing the container base
+
+The final image uses `debian:13-slim`, pinned by its multi-architecture digest in `Dockerfile`. Check the [Docker Hub tag metadata](https://hub.docker.com/v2/repositories/library/debian/tags/13-slim) for the current digest and confirm that both `amd64` and `arm64` images are present before replacing the digest. Keep the Debian slim base: the upstream cloudflared image has no shell, which the package's login helper and StartOS commands require.
+
+Verify that the selected `cloudflare/cloudflared:<version>` tag also exists for both architectures using its Docker Hub tag metadata before building.
 
 ## Applying the bump
 
