@@ -74,14 +74,26 @@ function serviceWithAddress(url: URL, address: string) {
     : result
 }
 
+function serviceAddress(effects: T.Effects, entry: StableIngress) {
+  return sdk.host.getBridgeAddress(effects, {
+    packageId: entry.packageId,
+    hostId: entry.hostId,
+    internalPort: entry.internalPort,
+  })
+}
+
+function routeTarget(entry: StableIngress): StableIngress {
+  return {
+    packageId: entry.packageId,
+    hostId: entry.hostId,
+    interfaceId: entry.interfaceId,
+    internalPort: entry.internalPort,
+    zoneId: entry.zoneId,
+  }
+}
+
 async function resolveService(effects: T.Effects, entry: StableIngress) {
-  const value = await sdk.host
-    .getBridgeAddress(effects, {
-      packageId: entry.packageId,
-      hostId: entry.hostId,
-      internalPort: entry.internalPort,
-    })
-    .once()
+  const value = await serviceAddress(effects, entry).once()
   return value ? `http://${value}` : null
 }
 
@@ -481,16 +493,7 @@ async function reconcileConfig(
         apiToken: zone.apiToken,
       },
       Object.fromEntries(
-        entries.map(([hostname, entry]) => [
-          hostname,
-          {
-            packageId: entry.packageId,
-            hostId: entry.hostId,
-            interfaceId: entry.interfaceId,
-            internalPort: entry.internalPort,
-            zoneId: entry.zoneId,
-          },
-        ]),
+        entries.map(([hostname, entry]) => [hostname, routeTarget(entry)]),
       ),
       [],
       Object.fromEntries(
@@ -550,22 +553,31 @@ export async function reconcileIngressOnce(effects: T.Effects) {
 }
 
 export const reconcileIngress = sdk.setupOnInit(async (effects) => {
-  const conf = await store
+  // Watch route choices, not the resolved origins and repair state we write.
+  const targets = await store
     .read((value) => ({
       tunnel: value.tunnel,
       zones: value.zones,
       ingress: Object.fromEntries(
         Object.entries(value.ingress).map(([hostname, entry]) => [
           hostname,
-          entry,
+          entry ? routeTarget(entry) : null,
         ]),
       ),
     }))
-    .once()
-  if (!conf) return
+    .const(effects)
+  if (!targets) return
 
   try {
-    await reconcileConfig(effects, conf)
+    if (targets.tunnel) {
+      for (const entry of Object.values(targets.ingress)) {
+        if (entry) await serviceAddress(effects, entry).const()
+      }
+    }
+
+    // Ownership checks need the most recently recorded origins.
+    const conf = await store.read().once()
+    if (conf) await reconcileConfig(effects, conf)
   } catch (error) {
     console.error('Cloudflare route reconciliation failed:', error)
   }

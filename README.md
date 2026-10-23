@@ -104,7 +104,7 @@ One interface, and it is not how traffic reaches the tunnel. All routed traffic 
 
 The daemon binds the metrics server on all interfaces inside its container so the health check and the exported address both reach it.
 
-Routes this package manages point at other services by their **bridge address**. The store records the package id, host id, and internal port rather than a resolved origin URL, and the address is resolved from that triple **each time this service starts** — so a route that has gone stale is corrected by restarting Cloudflare Tunnel or by running **Repair Cloudflare Routes**. Resolution is not live: a target's assigned port changing while this service is running does not update the tunnel on its own.
+Routes this package manages point at other services by their **bridge address**. The store records the package id, host id, and internal port, together with the last origin written to Cloudflare for ownership checks. An init handler watches the managed targets and their resolved bridge addresses. When a target's assigned port changes, its Cloudflare route updates automatically without restarting the tunnel. Routes added while the service is running are watched too. A target disappearing raises the repair task; its reappearance triggers another reconciliation.
 
 ## Installation and First-Run Flow
 
@@ -181,7 +181,7 @@ Restoring onto a **second** server while the first is still running points the s
 6. **DNS creation can fall back to manual.** The CNAME is created through `cloudflared` using the zone's certificate. If that fails — a conflicting record, a revoked certificate — the tunnel route is still added and the action returns the record to create by hand.
 7. **The metrics endpoint is local.** It is not routed through the tunnel and is not published on the internet by this package.
 8. **Changing the selected tunnel does not move existing routes.** The store's routes are pushed onto the newly selected tunnel at the next reconcile, but their DNS records still point at the old tunnel until they are recreated.
-9. **Route targets are re-resolved at startup, not continuously.** Managed routes are reconciled when this service starts and when **Repair Cloudflare Routes** runs. If a routed service's assigned port changes while Cloudflare Tunnel is running, its route keeps pointing at the old port until one of those happens.
+9. **Automatic route updates need access to the Cloudflare API.** If an update fails, the previous Cloudflare configuration remains in place and the repair task appears. Run **Repair Cloudflare Routes** after fixing the reported cause; a later target-address change also triggers another attempt.
 
 ---
 

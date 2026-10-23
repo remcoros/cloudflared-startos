@@ -14,7 +14,7 @@ A running Cloudflare tunnel, plus the ability to put any of your other services 
 
 - Traffic reaches your services through Cloudflare, over a connection your server opens outward. You do not open a port, forward anything on your router, or need a static IP.
 - Once a tunnel is set up, every other service on this server gets a **Cloudflare Tunnel** section in its address list, where you can hand it a subdomain.
-- Addresses you create here are re-pointed at their service every time Cloudflare Tunnel starts, so a reinstall that moves a service's internal port is fixed by a restart — or by running **Repair Cloudflare Routes**.
+- Addresses you create here follow their service automatically when StartOS assigns it a different port. Cloudflare Tunnel keeps running while the route is updated.
 - Routes and settings you create yourself in the Cloudflare dashboard are left alone.
 
 ## Getting set up
@@ -50,4 +50,4 @@ If the DNS record could not be created automatically, the result tells you exact
 
 - An address created here points at your service over plain HTTP inside the server. A service that only speaks HTTPS on the port you pick cannot be published this way.
 - Switching to a different tunnel does not move addresses you already created — their DNS records still point at the old tunnel until you recreate them.
-- Addresses are re-pointed when Cloudflare Tunnel starts, not continuously. If a service's internal port moves while Cloudflare Tunnel is running, its address stops working until you restart Cloudflare Tunnel or run **Repair Cloudflare Routes**.
+- If an automatic route update fails, a **Repair Cloudflare Routes** task appears. Fix the reported cause, then run the action to retry.
