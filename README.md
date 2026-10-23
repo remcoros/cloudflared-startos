@@ -35,11 +35,11 @@
 
 ## Image and Container Runtime
 
-One image, built here rather than pulled: the upstream image is distroless, and this package needs a shell for its login helper and for every one-shot `cloudflared` invocation. The Dockerfile copies the upstream `cloudflared` binary and `ca-certificates` onto a Debian slim base.
+One image, built here rather than pulled: the upstream image is distroless, and this package needs a shell for its login helper and for every one-shot `cloudflared` invocation. The Dockerfile copies the upstream `cloudflared` binary onto a Debian 13 slim base pinned by digest and installs `ca-certificates` from Debian.
 
 | Property      | Value                                                               |
 | ------------- | ------------------------------------------------------------------- |
-| Image         | Built from `cloudflare/cloudflared` on `debian:*-slim`              |
+| Image         | Built from `cloudflare/cloudflared` on digest-pinned `debian:13-slim` |
 | Architectures | x86_64, aarch64 (other CPUs run an available image under emulation) |
 | Command       | `cloudflared … tunnel --credentials-file … run <tunnel>`            |
 
