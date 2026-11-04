@@ -28,6 +28,4 @@ Verify that the selected `cloudflare/cloudflared:<version>` tag also exists for 
 
 ## Applying the bump
 
-1. Set `CLOUDFLARED_VERSION` in `startos/versions/current.ts` to the new release tag.
-2. Set `version` in the same file to `<new version>:0` — an upstream bump resets the downstream revision.
-3. Rewrite `releaseNotes` in all five locales, summarizing the upstream changes and linking to the release.
+Set `CLOUDFLARED_VERSION` in `startos/versions/current.ts` to the new release tag.
