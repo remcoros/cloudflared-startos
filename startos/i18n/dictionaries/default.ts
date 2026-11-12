@@ -121,7 +121,7 @@ const dict = {
   // actions/repairRoutes.ts and init/setupTasks.ts
   'Repair Cloudflare Routes': 300,
   'Reconnect managed Cloudflare routes to their selected StartOS services.': 301,
-  "Updates the Cloudflare tunnel configuration: each hostname this package manages, and any route still targeting a .startos address, is pointed at its service's current address on this server.": 406,
+  "Updates managed routes and legacy .startos routes to this server's current addresses. Removes managed hostnames and their matching DNS records for services absent from this server, including services not yet restored. Retries pending deletions, including those paused after a restore.": 406,
   'Cloudflare Routes Repaired': 302,
   'There are no managed Cloudflare routes to repair until a tunnel is selected.': 328,
   'Managed Cloudflare routes were updated successfully.': 303,
@@ -151,6 +151,9 @@ const dict = {
   'Removal pending. Run Repair Cloudflare Routes to retry.': 334,
 
   Status: 335,
+  'Restored hostnames are waiting: ${hostnames}. Restore their services to resume routes without pending deletion, or run Repair Cloudflare Routes to remove routes for missing services and retry paused deletions.': 336,
+  'Paused after restore. Restore the service or run Repair Cloudflare Routes; pending deletions require Repair.': 337,
+  'Changes to ${hostname} are paused after restore. Restore its service or run Repair Cloudflare Routes before adding it again.': 338,
 
   // action groups
   Configuration: 400,

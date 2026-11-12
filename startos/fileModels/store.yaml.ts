@@ -13,14 +13,15 @@ export const ingressEntryShape = z
     internalPort: z.number(),
     service: z.string(),
     zoneId: z.string().catch(''), // which zone's DNS this hostname was created in
-    // Persist deletion intent before contacting Cloudflare. A reinstall must
-    // not revive a route whose tunnel or DNS cleanup is still pending.
+    // Deletion intent survives failed Cloudflare requests.
     removal: z
       .looseObject({
         tunnelId: z.string(),
         accountId: z.string(),
       })
       .optional(),
+    // Restore deferrals survive reactive reruns and container restarts.
+    restoreDeferred: z.boolean().optional(),
   })
   .transform((entry) =>
     entry.packageId === 'start-os'

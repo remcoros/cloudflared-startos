@@ -13,7 +13,7 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
     const ingress = (await store.read((s) => s.ingress).const(effects)) ?? {}
 
     for (const [hostname, entry] of Object.entries(ingress)) {
-      if (!entry || entry.removal) continue
+      if (!entry || entry.removal || entry.restoreDeferred) continue
       if (!(await isPackageInstalled(effects, entry.packageId, true))) continue
 
       await sdk.plugin.url

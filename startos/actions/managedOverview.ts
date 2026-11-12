@@ -75,7 +75,7 @@ function getZoneGroups(
     const routeGroups: T.ActionResultMember[] = zoneRoutes.length
       ? zoneRoutes.map(([hostname, entry]) =>
           group(hostname, [
-            ...(entry.removal
+            ...(entry.removal || entry.restoreDeferred
               ? []
               : [
                   single(i18n('Public URL'), `https://${hostname}`, null, true),
@@ -88,14 +88,20 @@ function getZoneGroups(
             ),
             single(i18n('Interface ID'), entry.interfaceId),
             single(
-              entry.removal ? i18n('Status') : i18n('Internal Target'),
-              entry.removal
+              entry.removal || entry.restoreDeferred
+                ? i18n('Status')
+                : i18n('Internal Target'),
+              entry.restoreDeferred
                 ? i18n(
-                    'Removal pending. Run Repair Cloudflare Routes to retry.',
+                    'Paused after restore. Restore the service or run Repair Cloudflare Routes; pending deletions require Repair.',
                   )
-                : entry.service,
+                : entry.removal
+                  ? i18n(
+                      'Removal pending. Run Repair Cloudflare Routes to retry.',
+                    )
+                  : entry.service,
               null,
-              !entry.removal,
+              !entry.removal && !entry.restoreDeferred,
             ),
           ]),
         )

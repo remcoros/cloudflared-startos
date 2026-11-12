@@ -10,7 +10,7 @@ export const repairRoutes = sdk.Action.withoutInput(
       'Reconnect managed Cloudflare routes to their selected StartOS services.',
     ),
     warning: i18n(
-      "Updates the Cloudflare tunnel configuration: each hostname this package manages, and any route still targeting a .startos address, is pointed at its service's current address on this server.",
+      "Updates managed routes and legacy .startos routes to this server's current addresses. Removes managed hostnames and their matching DNS records for services absent from this server, including services not yet restored. Retries pending deletions, including those paused after a restore.",
     ),
     allowedStatuses: 'any',
     group: i18n('Configuration'),
@@ -18,7 +18,9 @@ export const repairRoutes = sdk.Action.withoutInput(
   }),
   async ({ effects }) => {
     try {
-      const { hasTunnel } = await reconcileIngressOnce(effects)
+      const { hasTunnel } = await reconcileIngressOnce(effects, {
+        confirmDeferred: true,
+      })
       if (!hasTunnel) {
         return {
           version: '1',

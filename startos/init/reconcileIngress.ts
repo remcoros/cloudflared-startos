@@ -377,11 +377,7 @@ export function associateMigratedIngressWithZones(
   return associated
 }
 
-/**
- * Safely update owned routes while retaining the complete live Cloudflare
- * configuration. Pending removals cannot be upserted or migrated.
- * Legacy .startos targets are migrated unless disabled.
- */
+/** Preserve the complete live configuration when changing owned routes. */
 export async function updateCloudflareIngress(
   effects: T.Effects,
   credentials: CloudflareCredentials,
@@ -390,17 +386,20 @@ export async function updateCloudflareIngress(
   expectedServices: Record<string, string | null> = {},
   options: { migrateLegacy?: boolean } = {},
 ) {
-  const pendingRemovals = new Set(
+  const blockedEntries = new Map(
     Object.entries((await store.read((value) => value.ingress).once()) ?? {})
-      .filter(([, entry]) => entry?.removal)
-      .map(([hostname]) => normalizedHostname(hostname)),
+      .filter(([, entry]) => entry?.removal || entry?.restoreDeferred)
+      .map(([hostname, entry]) => [normalizedHostname(hostname), entry]),
   )
   const resolvedUpserts: Record<string, IngressEntry> = {}
   for (const [hostname, entry] of Object.entries(upserts)) {
-    if (pendingRemovals.has(normalizedHostname(hostname))) {
+    const blocked = blockedEntries.get(normalizedHostname(hostname))
+    if (blocked) {
       throw new Error(
         i18n(
-          'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
+          blocked.restoreDeferred
+            ? 'Changes to ${hostname} are paused after restore. Restore its service or run Repair Cloudflare Routes before adding it again.'
+            : 'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
           { hostname },
         ),
       )
@@ -420,7 +419,7 @@ export async function updateCloudflareIngress(
   const removals = new Set(removeHostnames.map(normalizedHostname))
   const skipHostnames = new Set([
     ...removals,
-    ...pendingRemovals,
+    ...blockedEntries.keys(),
     ...Object.keys(resolvedUpserts).map(normalizedHostname),
   ])
   let migrated = 0
@@ -504,8 +503,7 @@ export async function removeManagedHostname(
     )
   }
 
-  // The persisted tunnel identity remains valid if the user changes tunnels
-  // before a failed cleanup is retried.
+  // Retry deletion against the original tunnel.
   await updateCloudflareIngress(
     effects,
     {
@@ -540,6 +538,50 @@ export async function removeManagedHostname(
   console.info(`Public hostname ${hostname} removed`)
 }
 
+type ReconcileOptions = {
+  restoring?: boolean
+  confirmDeferred?: boolean
+}
+
+async function updateRestoreDeferrals(
+  effects: T.Effects,
+  conf: StoreType,
+  options: ReconcileOptions,
+) {
+  const decisions = new Map<string, boolean>()
+  for (const [hostname, entry] of Object.entries(conf.ingress)) {
+    if (!entry || (!options.restoring && !entry.restoreDeferred)) continue
+    let deferred = true
+    if (options.confirmDeferred && conf.tunnel) {
+      deferred = false
+    } else if (!entry.removal) {
+      try {
+        deferred = !(await isPackageInstalled(effects, entry.packageId))
+      } catch {
+        // An unknown package state cannot authorize restored-route deletion.
+      }
+    }
+    if (deferred !== !!entry.restoreDeferred) decisions.set(hostname, deferred)
+  }
+  if (!decisions.size) return
+
+  // Persist restore decisions before any remote mutation.
+  await store.update(
+    effects,
+    (current) => {
+      if (!current) return null
+      for (const [hostname, deferred] of decisions) {
+        const entry = current.ingress[hostname]
+        if (!entry) continue
+        if (deferred) entry.restoreDeferred = true
+        else delete entry.restoreDeferred
+      }
+      return current
+    },
+    { allowWriteAfterConst: true },
+  )
+}
+
 async function reconcileConfig(
   effects: T.Effects,
   conf: Pick<StoreType, 'tunnel' | 'zones'> & {
@@ -549,13 +591,30 @@ async function reconcileConfig(
   const entries = Object.entries(conf.ingress).filter(
     (item): item is [string, IngressEntry] => item[1] !== null,
   )
+  const deferred = entries
+    .filter(([, entry]) => entry.restoreDeferred)
+    .map(([hostname]) => hostname)
+  const deferredMessage = deferred.length
+    ? i18n(
+        'Restored hostnames are waiting: ${hostnames}. Restore their services to resume routes without pending deletion, or run Repair Cloudflare Routes to remove routes for missing services and retry paused deletions.',
+        { hostnames: deferred.join(', ') },
+      )
+    : null
+  const reportRepair = (message: string | null) =>
+    setRepairState(
+      effects,
+      !!message || !!deferredMessage,
+      [message, deferredMessage].filter(Boolean).join(' ') || null,
+    )
   if (!conf.tunnel) {
-    await setRepairState(effects, false, null)
+    await reportRepair(null)
     return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
   }
 
   const failures: string[] = []
   for (const [hostname, entry] of entries) {
+    // Restored routes need observed presence or explicit repair before cleanup.
+    if (entry.restoreDeferred) continue
     try {
       if (
         entry.removal ||
@@ -570,12 +629,12 @@ async function reconcileConfig(
   // Cleanup may have removed entries or marked a failed deletion as pending.
   const latest = await store.read().once()
   const activeEntries = Object.entries(latest?.ingress ?? {}).filter(
-    (item): item is [string, IngressEntry] => !!item[1] && !item[1].removal,
+    (item): item is [string, IngressEntry] =>
+      !!item[1] && !item[1].removal && !item[1].restoreDeferred,
   )
   const active: Array<[string, IngressEntry]> = []
   for (const item of activeEntries) {
-    // Never send an absent package back as an upsert, even if credentials or
-    // the package-presence lookup prevented its cleanup above.
+    // Only present packages can be upserted.
     try {
       if (await isPackageInstalled(effects, item[1].packageId))
         active.push(item)
@@ -595,7 +654,7 @@ async function reconcileConfig(
     const message = i18n(
       'No Cloudflare zone credentials are available to repair tunnel routes.',
     )
-    await setRepairState(effects, true, message)
+    await reportRepair(message)
     throw new Error(message)
   }
 
@@ -624,7 +683,7 @@ async function reconcileConfig(
     const message = i18n(
       'Cloudflare routes could not be updated safely. Check the service logs, then try again.',
     )
-    await setRepairState(effects, true, message)
+    await reportRepair(message)
     throw error
   }
 
@@ -646,10 +705,10 @@ async function reconcileConfig(
       'Could not finish removing public hostnames: ${detail}. Run Repair Cloudflare Routes to retry.',
       { detail: failures.join('; ') },
     )
-    await setRepairState(effects, true, message)
+    await reportRepair(message)
     throw new Error(message)
   }
-  await setRepairState(effects, false, null)
+  await reportRepair(null)
   return {
     hasTunnel: true,
     repaired: entries.length + result.migrated,
@@ -658,25 +717,23 @@ async function reconcileConfig(
   }
 }
 
-export async function reconcileIngressOnce(effects: T.Effects) {
+export async function reconcileIngressOnce(
+  effects: T.Effects,
+  options: ReconcileOptions = {},
+) {
   return withRouteLock(async () => {
-    const conf = await store.read().once()
+    let conf = await store.read().once()
     if (!conf)
       return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
-    return reconcileConfig(effects, {
-      tunnel: conf.tunnel,
-      zones: conf.zones,
-      ingress: Object.fromEntries(
-        Object.entries(conf.ingress).map(([hostname, entry]) => [
-          hostname,
-          entry,
-        ]),
-      ),
-    })
+    await updateRestoreDeferrals(effects, conf, options)
+    conf = await store.read().once()
+    if (!conf)
+      return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
+    return reconcileConfig(effects, conf)
   })
 }
 
-export const reconcileIngress = sdk.setupOnInit(async (effects) => {
+export const reconcileIngress = sdk.setupOnInit(async (effects, kind) => {
   // Watch route choices, not the resolved origins and repair state we write.
   const targets = await store
     .read((value) => ({
@@ -712,7 +769,7 @@ export const reconcileIngress = sdk.setupOnInit(async (effects) => {
     }
 
     // Read the latest store inside the route lock, after earlier actions finish.
-    await reconcileIngressOnce(effects)
+    await reconcileIngressOnce(effects, { restoring: kind === 'restore' })
   } catch (error) {
     console.error('Cloudflare route reconciliation failed:', error)
   }
