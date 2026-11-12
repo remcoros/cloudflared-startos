@@ -53,3 +53,24 @@ export async function runCf(
     },
   )
 }
+
+// Serialize complete route operations, including their local writes. A remote
+// read/rebase alone cannot protect two concurrent full-configuration PUTs.
+let routeOperation: Promise<unknown> = Promise.resolve()
+
+export function withRouteLock<A>(run: () => Promise<A>): Promise<A> {
+  const result = routeOperation.then(run)
+  routeOperation = result.catch(() => undefined)
+  return result
+}
+
+export async function isPackageInstalled(
+  effects: T.Effects,
+  packageId: string,
+  watch = false,
+): Promise<boolean> {
+  // The server's admin host is not an installed service package.
+  if (packageId === 'start-os') return true
+  const present = sdk.getServiceManifest(effects, packageId, Boolean)
+  return watch ? present.const() : present.once()
+}

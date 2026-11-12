@@ -150,6 +150,11 @@ export default {
     404: 'Importados',
     405: 'Omitidos',
     406: 'Actualiza la configuración del túnel Cloudflare: cada nombre de host que gestiona este paquete, y cualquier ruta que aún apunte a una dirección .startos, pasa a apuntar a la dirección actual de su servicio en este servidor.',
+    331: 'El registro DNS de ${hostname} ya no apunta a este túnel, o Cloudflare devolvió un registro no válido. Se rechaza su eliminación.',
+    332: 'No se pudo completar la eliminación de nombres de host públicos: ${detail}. Ejecuta Reparar rutas de Cloudflare para reintentar.',
+    333: 'La limpieza de ${hostname} está pendiente. Ejecuta Reparar rutas de Cloudflare antes de agregarlo de nuevo.',
+    334: 'Eliminación pendiente. Ejecuta Reparar rutas de Cloudflare para reintentar.',
+    335: 'Estado',
   },
   de_DE: {
     // main.ts
@@ -300,6 +305,11 @@ export default {
     404: 'Importiert',
     405: 'Übersprungen',
     406: 'Aktualisiert die Konfiguration des Cloudflare-Tunnels: Jeder von diesem Paket verwaltete Hostname und jede Route, die noch auf eine .startos-Adresse zeigt, wird auf die aktuelle Adresse ihres Dienstes auf diesem Server gerichtet.',
+    331: 'Der DNS-Eintrag für ${hostname} zeigt nicht mehr auf diesen Tunnel, oder Cloudflare hat einen ungültigen Eintrag zurückgegeben. Er wird nicht gelöscht.',
+    332: 'Öffentliche Hostnamen konnten nicht vollständig entfernt werden: ${detail}. Führe Cloudflare-Routen reparieren aus, um es erneut zu versuchen.',
+    333: 'Die Bereinigung für ${hostname} steht noch aus. Führe Cloudflare-Routen reparieren aus, bevor du ihn erneut hinzufügst.',
+    334: 'Entfernung ausstehend. Führe Cloudflare-Routen reparieren aus, um es erneut zu versuchen.',
+    335: 'Status',
   },
   pl_PL: {
     // main.ts
@@ -450,6 +460,11 @@ export default {
     404: 'Zaimportowane',
     405: 'Pominięte',
     406: 'Aktualizuje konfigurację tunelu Cloudflare: każda nazwa hosta zarządzana przez ten pakiet oraz każda trasa wciąż wskazująca na adres .startos zostaje skierowana na bieżący adres swojej usługi na tym serwerze.',
+    331: 'Rekord DNS dla ${hostname} nie wskazuje już tego tunelu lub Cloudflare zwrócił nieprawidłowy rekord. Odmowa usunięcia.',
+    332: 'Nie udało się dokończyć usuwania publicznych nazw hostów: ${detail}. Uruchom Napraw trasy Cloudflare, aby spróbować ponownie.',
+    333: 'Czyszczenie ${hostname} oczekuje na zakończenie. Uruchom Napraw trasy Cloudflare przed ponownym dodaniem.',
+    334: 'Usuwanie oczekuje. Uruchom Napraw trasy Cloudflare, aby spróbować ponownie.',
+    335: 'Stan',
   },
   fr_FR: {
     // main.ts
@@ -600,5 +615,10 @@ export default {
     404: 'Importés',
     405: 'Ignorés',
     406: "Met à jour la configuration du tunnel Cloudflare : chaque nom d'hôte géré par ce paquet, ainsi que toute route qui cible encore une adresse .startos, est dirigé vers l'adresse actuelle de son service sur ce serveur.",
+    331: 'L’enregistrement DNS de ${hostname} ne pointe plus vers ce tunnel, ou Cloudflare a renvoyé un enregistrement invalide. Suppression refusée.',
+    332: 'Impossible de terminer la suppression des noms d’hôte publics : ${detail}. Exécutez Réparer les routes Cloudflare pour réessayer.',
+    333: 'Le nettoyage de ${hostname} est en attente. Exécutez Réparer les routes Cloudflare avant de l’ajouter à nouveau.',
+    334: 'Suppression en attente. Exécutez Réparer les routes Cloudflare pour réessayer.',
+    335: 'État',
   },
 } satisfies Record<string, LangDict>

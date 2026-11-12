@@ -2,12 +2,14 @@ import { T } from '@start9labs/start-sdk'
 import {
   CloudflareIngressRule,
   CloudflareTunnelConfig,
+  deleteDnsRecord,
   summarizeCloudflareError,
   updateTunnelConfig,
 } from '../cfApi'
 import { IngressEntry, StoreType, store } from '../fileModels/store.yaml'
 import { sdk } from '../sdk'
 import { i18n } from '../i18n'
+import { isPackageInstalled, withRouteLock } from '../utils'
 
 export type StableIngress = Pick<
   IngressEntry,
@@ -385,6 +387,7 @@ export async function updateCloudflareIngress(
   upserts: Record<string, StableIngress> = {},
   removeHostnames: string[] = [],
   expectedServices: Record<string, string | null> = {},
+  options: { migrateLegacy?: boolean } = {},
 ) {
   const resolvedUpserts: Record<string, IngressEntry> = {}
   for (const [hostname, entry] of Object.entries(upserts)) {
@@ -422,11 +425,10 @@ export async function updateCloudflareIngress(
         expectedServices,
         resolvedUpserts,
       )
-      const migration = await migrateLegacyRules(
-        effects,
-        config.ingress,
-        skipHostnames,
-      )
+      const migration =
+        options.migrateLegacy === false
+          ? { rules: config.ingress, ingress: {}, migrated: 0 }
+          : await migrateLegacyRules(effects, config.ingress, skipHostnames)
       migrated = migration.migrated
       migratedIngress = migration.ingress
       return mergeIngressRules(
@@ -454,6 +456,75 @@ async function setRepairState(
   if (!required) await sdk.action.clearTask(effects, 'repair-cloudflare-routes')
 }
 
+/** Called under withRouteLock by actions and reconciliation. */
+export async function removeManagedHostname(
+  effects: T.Effects,
+  hostname: string,
+) {
+  const conf = await store.read().once()
+  const entry = conf?.ingress[hostname]
+  if (!conf || !entry) return
+  const zone = conf.zones[entry.zoneId]
+  const removal =
+    entry.removal ??
+    (conf.tunnel && {
+      tunnelId: conf.tunnel.id,
+      accountId: conf.tunnel.accountId || zone?.accountId || '',
+    })
+  if (!removal) throw new Error(i18n('No tunnel selected'))
+
+  if (!entry.removal) {
+    await store.merge(
+      effects,
+      { ingress: { [hostname]: { ...entry, removal } } },
+      { allowWriteAfterConst: true },
+    )
+  }
+  if (!zone || (removal.accountId && zone.accountId !== removal.accountId)) {
+    throw new Error(
+      i18n(
+        'No Cloudflare zone credentials found for ${hostname}. Refusing to remove the local entry before the remote tunnel configuration is updated.',
+        { hostname },
+      ),
+    )
+  }
+
+  // The persisted tunnel identity remains valid if the user changes tunnels
+  // before a failed cleanup is retried.
+  await updateCloudflareIngress(
+    effects,
+    {
+      accountId: removal.accountId || zone.accountId,
+      tunnelId: removal.tunnelId,
+      apiToken: zone.apiToken,
+    },
+    {},
+    [hostname],
+    { [hostname]: entry.service },
+    { migrateLegacy: false },
+  )
+
+  const dns = await deleteDnsRecord(
+    entry.zoneId,
+    hostname,
+    zone.apiToken,
+    removal.tunnelId,
+  )
+  if (dns.errors.length) throw new Error(dns.errors.join('; '))
+
+  await store.update(
+    effects,
+    (current) => {
+      if (!current) return null
+      const ingress = { ...current.ingress }
+      delete ingress[hostname]
+      return { ...current, ingress }
+    },
+    { allowWriteAfterConst: true },
+  )
+  console.info(`Public hostname ${hostname} removed`)
+}
+
 async function reconcileConfig(
   effects: T.Effects,
   conf: Pick<StoreType, 'tunnel' | 'zones'> & {
@@ -466,6 +537,36 @@ async function reconcileConfig(
   if (!conf.tunnel) {
     await setRepairState(effects, false, null)
     return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
+  }
+
+  const failures: string[] = []
+  for (const [hostname, entry] of entries) {
+    try {
+      if (
+        entry.removal ||
+        !(await isPackageInstalled(effects, entry.packageId))
+      ) {
+        await removeManagedHostname(effects, hostname)
+      }
+    } catch (error) {
+      failures.push(`${hostname}: ${summarizeCloudflareError(error)}`)
+    }
+  }
+  // Cleanup may have removed entries or marked a failed deletion as pending.
+  const latest = await store.read().once()
+  const activeEntries = Object.entries(latest?.ingress ?? {}).filter(
+    (item): item is [string, IngressEntry] => !!item[1] && !item[1].removal,
+  )
+  const active: Array<[string, IngressEntry]> = []
+  for (const item of activeEntries) {
+    // Never send an absent package back as an upsert, even if credentials or
+    // the package-presence lookup prevented its cleanup above.
+    try {
+      if (await isPackageInstalled(effects, item[1].packageId))
+        active.push(item)
+    } catch (error) {
+      failures.push(`${item[0]}: ${summarizeCloudflareError(error)}`)
+    }
   }
 
   const zone =
@@ -493,11 +594,11 @@ async function reconcileConfig(
         apiToken: zone.apiToken,
       },
       Object.fromEntries(
-        entries.map(([hostname, entry]) => [hostname, routeTarget(entry)]),
+        active.map(([hostname, entry]) => [hostname, routeTarget(entry)]),
       ),
       [],
       Object.fromEntries(
-        entries.map(([hostname, entry]) => [hostname, entry.service]),
+        active.map(([hostname, entry]) => [hostname, entry.service]),
       ),
     )
   } catch (error) {
@@ -522,12 +623,18 @@ async function reconcileConfig(
         ),
         ...result.ingress,
       },
-      repairRequired: false,
-      repairMessage: null,
     },
     { allowWriteAfterConst: true },
   )
-  await sdk.action.clearTask(effects, 'repair-cloudflare-routes')
+  if (failures.length) {
+    const message = i18n(
+      'Could not finish removing public hostnames: ${detail}. Run Repair Cloudflare Routes to retry.',
+      { detail: failures.join('; ') },
+    )
+    await setRepairState(effects, true, message)
+    throw new Error(message)
+  }
+  await setRepairState(effects, false, null)
   return {
     hasTunnel: true,
     repaired: entries.length + result.migrated,
@@ -537,18 +644,20 @@ async function reconcileConfig(
 }
 
 export async function reconcileIngressOnce(effects: T.Effects) {
-  const conf = await store.read().once()
-  if (!conf)
-    return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
-  return reconcileConfig(effects, {
-    tunnel: conf.tunnel,
-    zones: conf.zones,
-    ingress: Object.fromEntries(
-      Object.entries(conf.ingress).map(([hostname, entry]) => [
-        hostname,
-        entry,
-      ]),
-    ),
+  return withRouteLock(async () => {
+    const conf = await store.read().once()
+    if (!conf)
+      return { hasTunnel: false, repaired: 0, migrated: 0, updated: false }
+    return reconcileConfig(effects, {
+      tunnel: conf.tunnel,
+      zones: conf.zones,
+      ingress: Object.fromEntries(
+        Object.entries(conf.ingress).map(([hostname, entry]) => [
+          hostname,
+          entry,
+        ]),
+      ),
+    })
   })
 }
 
@@ -561,7 +670,7 @@ export const reconcileIngress = sdk.setupOnInit(async (effects) => {
       ingress: Object.fromEntries(
         Object.entries(value.ingress).map(([hostname, entry]) => [
           hostname,
-          entry ? routeTarget(entry) : null,
+          entry ? { ...routeTarget(entry), removal: entry.removal } : null,
         ]),
       ),
     }))
@@ -571,13 +680,24 @@ export const reconcileIngress = sdk.setupOnInit(async (effects) => {
   try {
     if (targets.tunnel) {
       for (const entry of Object.values(targets.ingress)) {
-        if (entry) await serviceAddress(effects, entry).const()
+        if (entry && !entry.removal) {
+          try {
+            const installed = await isPackageInstalled(
+              effects,
+              entry.packageId,
+              true,
+            )
+            if (installed) await serviceAddress(effects, entry).const()
+          } catch (error) {
+            // Register the remaining targets even if one subscription fails.
+            console.error(`Could not watch ${entry.packageId}:`, error)
+          }
+        }
       }
     }
 
-    // Ownership checks need the most recently recorded origins.
-    const conf = await store.read().once()
-    if (conf) await reconcileConfig(effects, conf)
+    // Read the latest store inside the route lock, after earlier actions finish.
+    await reconcileIngressOnce(effects)
   } catch (error) {
     console.error('Cloudflare route reconciliation failed:', error)
   }

@@ -2,6 +2,7 @@ import { addPublicHostname } from '../actions/addPublicHostname'
 import { deletePublicHostname } from '../actions/deletePublicHostname'
 import { store } from '../fileModels/store.yaml'
 import { sdk } from '../sdk'
+import { isPackageInstalled } from '../utils'
 
 export const registerUrlPlugin = sdk.setupOnInit(async (effects) =>
   sdk.plugin.url.register(effects, { tableAction: addPublicHostname }),
@@ -12,7 +13,8 @@ export const exportUrls = sdk.plugin.url.setupExportedUrls(
     const ingress = (await store.read((s) => s.ingress).const(effects)) ?? {}
 
     for (const [hostname, entry] of Object.entries(ingress)) {
-      if (!entry) continue
+      if (!entry || entry.removal) continue
+      if (!(await isPackageInstalled(effects, entry.packageId, true))) continue
 
       await sdk.plugin.url
         .exportUrl(effects, {

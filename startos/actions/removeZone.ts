@@ -1,3 +1,4 @@
+import { withRouteLock } from '../utils'
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
 import { zoneCertSubpath } from '../fileModels/certPem'
@@ -58,35 +59,36 @@ export const removeZone = sdk.Action.withInput(
 
   async () => null,
 
-  async ({ effects, input }) => {
-    const zoneId = (input.zoneId as { selection: string }).selection
-    if (zoneId === 'none') return
+  async ({ effects, input }) =>
+    withRouteLock(async () => {
+      const zoneId = (input.zoneId as { selection: string }).selection
+      if (zoneId === 'none') return
 
-    // Remove all ingress entries for this zone
-    const conf = await store.read().once()
-    if (!conf) {
-      throw new Error(i18n('Cloudflared configuration is unavailable.'))
-    }
-    const nextIngress = { ...conf.ingress }
-    for (const [hostname, entry] of Object.entries(conf.ingress ?? {})) {
-      if (entry?.zoneId === zoneId) {
-        delete nextIngress[hostname]
+      // Remove all ingress entries for this zone
+      const conf = await store.read().once()
+      if (!conf) {
+        throw new Error(i18n('Cloudflared configuration is unavailable.'))
       }
-    }
-    const nextZones = { ...conf.zones }
-    delete nextZones[zoneId]
+      const nextIngress = { ...conf.ingress }
+      for (const [hostname, entry] of Object.entries(conf.ingress ?? {})) {
+        if (entry?.zoneId === zoneId) {
+          delete nextIngress[hostname]
+        }
+      }
+      const nextZones = { ...conf.zones }
+      delete nextZones[zoneId]
 
-    await store.write(effects, {
-      ...conf,
-      ingress: nextIngress,
-      zones: nextZones,
-    })
+      await store.write(effects, {
+        ...conf,
+        ingress: nextIngress,
+        zones: nextZones,
+      })
 
-    // Remove zone-specific cert file
-    try {
-      await unlink(sdk.volumes.main.subpath(zoneCertSubpath(zoneId)))
-    } catch {}
+      // Remove zone-specific cert file
+      try {
+        await unlink(sdk.volumes.main.subpath(zoneCertSubpath(zoneId)))
+      } catch {}
 
-    console.info(`Zone ${zoneId} removed`)
-  },
+      console.info(`Zone ${zoneId} removed`)
+    }),
 )

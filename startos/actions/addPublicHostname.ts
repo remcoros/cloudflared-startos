@@ -1,3 +1,4 @@
+import { withRouteLock } from '../utils'
 import { sdk } from '../sdk'
 import { IngressEntry, store } from '../fileModels/store.yaml'
 import { summarizeCloudflareError } from '../cfApi'
@@ -111,206 +112,217 @@ export const addPublicHostname = sdk.Action.withInput(
       : null
   },
 
-  async ({ effects, input }) => {
-    const {
-      packageId: rawPkgId,
-      internalPort,
-      interfaceId,
-      hostId,
-    } = input.urlPluginMetadata
-    const packageId = rawPkgId === 'STARTOS' ? 'start-os' : rawPkgId
-    const targetHostId = packageId === 'start-os' ? 'admin' : hostId
-    const targetInterfaceId =
-      packageId === 'start-os' ? 'admin-ui' : interfaceId
-    const subdomain = input.subdomain.trim().toLowerCase()
-    const zoneId = (input.domain as { selection: string }).selection
+  async ({ effects, input }) =>
+    withRouteLock(async () => {
+      const {
+        packageId: rawPkgId,
+        internalPort,
+        interfaceId,
+        hostId,
+      } = input.urlPluginMetadata
+      const packageId = rawPkgId === 'STARTOS' ? 'start-os' : rawPkgId
+      const targetHostId = packageId === 'start-os' ? 'admin' : hostId
+      const targetInterfaceId =
+        packageId === 'start-os' ? 'admin-ui' : interfaceId
+      const subdomain = input.subdomain.trim().toLowerCase()
+      const zoneId = (input.domain as { selection: string }).selection
 
-    const conf = await store.read().once()
+      const conf = await store.read().once()
 
-    if (zoneId === 'none' || !conf?.zones?.[zoneId]) {
-      return {
-        version: '1',
-        title: i18n('No Zone Configured'),
-        message: i18n(
-          'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.',
-        ),
-        result: null,
+      if (zoneId === 'none' || !conf?.zones?.[zoneId]) {
+        return {
+          version: '1',
+          title: i18n('No Zone Configured'),
+          message: i18n(
+            'Login to Cloudflare first (run "Login to Cloudflare" action) to configure a DNS zone.',
+          ),
+          result: null,
+        }
       }
-    }
 
-    if (!conf.tunnel) {
-      return {
-        version: '1',
-        title: i18n('No Tunnel Configured'),
-        message: i18n(
-          'Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).',
-        ),
-        result: null,
+      if (!conf.tunnel) {
+        return {
+          version: '1',
+          title: i18n('No Tunnel Configured'),
+          message: i18n(
+            'Select a Cloudflare tunnel first (run "Cloudflare Tunnel" action).',
+          ),
+          result: null,
+        }
       }
-    }
 
-    const zone = conf.zones[zoneId]
-    const tunnelAccountId = conf.tunnel.accountId || zone.accountId
+      const zone = conf.zones[zoneId]
+      const tunnelAccountId = conf.tunnel.accountId || zone.accountId
 
-    if (conf.tunnel.accountId && zone.accountId !== conf.tunnel.accountId) {
-      return {
-        version: '1',
-        title: i18n('Cloudflare Account Mismatch'),
-        message: i18n(
-          'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
-        ),
-        result: null,
+      if (conf.tunnel.accountId && zone.accountId !== conf.tunnel.accountId) {
+        return {
+          version: '1',
+          title: i18n('Cloudflare Account Mismatch'),
+          message: i18n(
+            'The selected domain belongs to a different Cloudflare account than the selected tunnel. Re-run the Cloudflare Tunnel action and choose a tunnel from this account, or pick a domain from the tunnel account.',
+          ),
+          result: null,
+        }
       }
-    }
 
-    const hostname = `${subdomain}.${zone.zoneName}`
-    const tunnelId = conf.tunnel.id
-    const stableEntry = {
-      packageId,
-      hostId: targetHostId,
-      interfaceId: targetInterfaceId,
-      internalPort,
-      zoneId,
-    }
-    let nextEntry: IngressEntry
-    let migratedIngress: Record<string, IngressEntry> = {}
-    // Merge into the complete live configuration first so local state only
-    // changes after Cloudflare accepts the preservation-aware update.
-    try {
-      const result = await updateCloudflareIngress(
-        effects,
-        {
-          accountId: zone.accountId,
-          tunnelId,
-          apiToken: zone.apiToken,
-        },
-        { [hostname]: stableEntry },
-        [],
-        { [hostname]: conf.ingress?.[hostname]?.service ?? null },
-      )
-      nextEntry = result.ingress[hostname]
-      migratedIngress = associateMigratedIngressWithZones(
-        result.migratedIngress,
-        conf.zones,
-      )
-    } catch (error) {
-      const summary = summarizeCloudflareError(error)
-      console.error(
-        `Failed to update Cloudflare tunnel config for ${hostname}: ${summary}`,
-      )
-      return {
-        version: '1',
-        title: i18n('Cloudflare Update Failed'),
-        message: i18n(
-          'Could not update the Cloudflare tunnel configuration for ${hostname}. ${detail}',
-          { hostname, detail: summary },
-        ),
-        result: null,
-      }
-    }
-
-    await store.merge(effects, {
-      tunnel: {
-        ...conf.tunnel,
-        accountId: tunnelAccountId,
-      },
-      ingress: {
-        ...migratedIngress,
-        [hostname]: nextEntry,
-      },
-    })
-
-    // Create DNS CNAME via cloudflared CLI using zone-specific cert
-    const certSubpath = zoneCertSubpath(zoneId)
-    let certExists = false
-    try {
-      await sdk.volumes.main.readFile(certSubpath)
-      certExists = true
-    } catch {}
-
-    let dnsCreated = false
-    let dnsFailureDetail: string | null = null
-    if (certExists) {
-      await sdk.SubContainer.withTemp(
-        effects,
-        { imageId: 'main' },
-        sdk.Mounts.of()
-          .mountVolume({
-            volumeId: 'main',
-            subpath: null,
-            mountpoint: '/root/data',
-            readonly: false,
-          })
-          .mountVolume({
-            volumeId: 'main',
-            subpath: '.cloudflared',
-            mountpoint: '/root/.cloudflared',
-            readonly: true,
-          }),
-        'route-dns',
-        async (sub) => {
-          const certPath = `/root/.cloudflared/zone-${zoneId}.pem`
-          const result = await sub.exec(
-            [
-              '/usr/local/bin/cloudflared',
-              '--no-autoupdate',
-              `--origincert=${certPath}`,
-              'tunnel',
-              'route',
-              'dns',
-              '--overwrite-dns',
-              tunnelId,
-              hostname,
-            ],
-            { timeout: 30_000 },
-          )
-          if (result.stdout) console.info(result.stdout)
-          if (result.stderr) console.info(result.stderr)
-          if (result.exitCode === 0) {
-            dnsCreated = true
-          } else {
-            dnsFailureDetail = summarizeDnsRouteFailure(
-              `${result.stderr?.toString() ?? ''}\n${result.stdout?.toString() ?? ''}`,
-            )
-            console.error(
-              `DNS route creation failed for ${hostname}: ${dnsFailureDetail}. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
-            )
-          }
-        },
-      )
-    } else {
-      dnsFailureDetail = i18n('No zone certificate is available for this zone.')
-      console.info(
-        `No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
-      )
-    }
-
-    const target = `${tunnelId}.cfargotunnel.com`
-    return {
-      version: '1',
-      title: i18n('Public Hostname Added'),
-      message: dnsCreated
-        ? i18n(
-            '${hostname} is now routed to this service. The DNS record was created automatically.',
+      const hostname = `${subdomain}.${zone.zoneName}`
+      if (conf.ingress[hostname]?.removal) {
+        throw new Error(
+          i18n(
+            'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
             { hostname },
-          )
-        : dnsFailureDetail
-          ? i18n(
-              '${hostname} is now routed to this service, but the DNS record could not be created automatically: ${detail} Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
-              { hostname, detail: dnsFailureDetail, target },
+          ),
+        )
+      }
+      const tunnelId = conf.tunnel.id
+      const stableEntry = {
+        packageId,
+        hostId: targetHostId,
+        interfaceId: targetInterfaceId,
+        internalPort,
+        zoneId,
+      }
+      let nextEntry: IngressEntry
+      let migratedIngress: Record<string, IngressEntry> = {}
+      // Merge into the complete live configuration first so local state only
+      // changes after Cloudflare accepts the preservation-aware update.
+      try {
+        const result = await updateCloudflareIngress(
+          effects,
+          {
+            accountId: zone.accountId,
+            tunnelId,
+            apiToken: zone.apiToken,
+          },
+          { [hostname]: stableEntry },
+          [],
+          { [hostname]: conf.ingress?.[hostname]?.service ?? null },
+        )
+        nextEntry = result.ingress[hostname]
+        migratedIngress = associateMigratedIngressWithZones(
+          result.migratedIngress,
+          conf.zones,
+        )
+      } catch (error) {
+        const summary = summarizeCloudflareError(error)
+        console.error(
+          `Failed to update Cloudflare tunnel config for ${hostname}: ${summary}`,
+        )
+        return {
+          version: '1',
+          title: i18n('Cloudflare Update Failed'),
+          message: i18n(
+            'Could not update the Cloudflare tunnel configuration for ${hostname}. ${detail}',
+            { hostname, detail: summary },
+          ),
+          result: null,
+        }
+      }
+
+      await store.merge(effects, {
+        tunnel: {
+          ...conf.tunnel,
+          accountId: tunnelAccountId,
+        },
+        ingress: {
+          ...migratedIngress,
+          [hostname]: nextEntry,
+        },
+      })
+
+      // Create DNS CNAME via cloudflared CLI using zone-specific cert
+      const certSubpath = zoneCertSubpath(zoneId)
+      let certExists = false
+      try {
+        await sdk.volumes.main.readFile(certSubpath)
+        certExists = true
+      } catch {}
+
+      let dnsCreated = false
+      let dnsFailureDetail: string | null = null
+      if (certExists) {
+        await sdk.SubContainer.withTemp(
+          effects,
+          { imageId: 'main' },
+          sdk.Mounts.of()
+            .mountVolume({
+              volumeId: 'main',
+              subpath: null,
+              mountpoint: '/root/data',
+              readonly: false,
+            })
+            .mountVolume({
+              volumeId: 'main',
+              subpath: '.cloudflared',
+              mountpoint: '/root/.cloudflared',
+              readonly: true,
+            }),
+          'route-dns',
+          async (sub) => {
+            const certPath = `/root/.cloudflared/zone-${zoneId}.pem`
+            const result = await sub.exec(
+              [
+                '/usr/local/bin/cloudflared',
+                '--no-autoupdate',
+                `--origincert=${certPath}`,
+                'tunnel',
+                'route',
+                'dns',
+                '--overwrite-dns',
+                tunnelId,
+                hostname,
+              ],
+              { timeout: 30_000 },
             )
-          : i18n(
-              '${hostname} is now routed to this service. Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
-              { hostname, target },
-            ),
-      result: {
-        type: 'single',
-        value: `https://${hostname}`,
-        copyable: true,
-        qr: false,
-        masked: false,
-        launchable: false,
-      },
-    }
-  },
+            if (result.stdout) console.info(result.stdout)
+            if (result.stderr) console.info(result.stderr)
+            if (result.exitCode === 0) {
+              dnsCreated = true
+            } else {
+              dnsFailureDetail = summarizeDnsRouteFailure(
+                `${result.stderr?.toString() ?? ''}\n${result.stdout?.toString() ?? ''}`,
+              )
+              console.error(
+                `DNS route creation failed for ${hostname}: ${dnsFailureDetail}. Add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+              )
+            }
+          },
+        )
+      } else {
+        dnsFailureDetail = i18n(
+          'No zone certificate is available for this zone.',
+        )
+        console.info(
+          `No cert for zone ${zoneId} - add CNAME manually: ${hostname} -> ${tunnelId}.cfargotunnel.com`,
+        )
+      }
+
+      const target = `${tunnelId}.cfargotunnel.com`
+      return {
+        version: '1',
+        title: i18n('Public Hostname Added'),
+        message: dnsCreated
+          ? i18n(
+              '${hostname} is now routed to this service. The DNS record was created automatically.',
+              { hostname },
+            )
+          : dnsFailureDetail
+            ? i18n(
+                '${hostname} is now routed to this service, but the DNS record could not be created automatically: ${detail} Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
+                { hostname, detail: dnsFailureDetail, target },
+              )
+            : i18n(
+                '${hostname} is now routed to this service. Add a proxied CNAME record for it in the Cloudflare dashboard, pointing at ${target}',
+                { hostname, target },
+              ),
+        result: {
+          type: 'single',
+          value: `https://${hostname}`,
+          copyable: true,
+          qr: false,
+          masked: false,
+          launchable: false,
+        },
+      }
+    }),
 )

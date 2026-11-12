@@ -51,3 +51,9 @@ If the DNS record could not be created automatically, the result tells you exact
 - An address created here points at your service over plain HTTP inside the server. A service that only speaks HTTPS on the port you pick cannot be published this way.
 - Switching to a different tunnel does not move addresses you already created — their DNS records still point at the old tunnel until you recreate them.
 - If an automatic route update fails, a **Repair Cloudflare Routes** task appears. Fix the reported cause, then run the action to retry.
+
+## Uninstalling a routed service
+
+Cloudflare Tunnel automatically removes the public hostname route and its matching DNS record when its service is uninstalled. Stopping the service keeps its hostname. After reinstalling, add the subdomain again from the service’s addresses.
+
+If cleanup fails, **Managed Public Routes** shows the hostname as pending removal. Resolve the problem reported by the task, then run **Repair Cloudflare Routes** to retry. A DNS record changed to point elsewhere is preserved and reported for you to check in Cloudflare.

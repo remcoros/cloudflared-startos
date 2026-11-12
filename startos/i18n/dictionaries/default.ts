@@ -145,6 +145,13 @@ const dict = {
   'Cannot resolve a StartOS bridge address for ${url}. The live Cloudflare configuration was not changed.': 325,
   'Invalid StartOS bridge address: ${address}': 326,
 
+  'The DNS record for ${hostname} no longer points at this tunnel, or Cloudflare returned an invalid record. Refusing to delete it.': 331,
+  'Could not finish removing public hostnames: ${detail}. Run Repair Cloudflare Routes to retry.': 332,
+  'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.': 333,
+  'Removal pending. Run Repair Cloudflare Routes to retry.': 334,
+
+  Status: 335,
+
   // action groups
   Configuration: 400,
   Import: 401,
