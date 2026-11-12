@@ -1,6 +1,6 @@
 import { sdk } from '../sdk'
 import { store } from '../fileModels/store.yaml'
-import { runCf } from '../utils'
+import { runCf, withRouteLock } from '../utils'
 import { i18n } from '../i18n'
 import { metricsHostId, metricsInterfaceId, metricsPort } from '../interfaces'
 
@@ -181,74 +181,75 @@ export const selectTunnel = sdk.Action.withInput(
     }
   },
 
-  async ({ effects, input }) => {
-    const selection = input.tunnel as {
-      selection: string
-      value: { name?: string }
-    }
-    let tunnelId: string
-    let tunnelName: string
+  async ({ effects, input }) =>
+    withRouteLock(async () => {
+      const selection = input.tunnel as {
+        selection: string
+        value: { name?: string }
+      }
+      let tunnelId: string
+      let tunnelName: string
 
-    // Find first zone cert for origincert-required commands
-    const conf = await store.read().once()
-    const firstZoneId = Object.keys(conf?.zones ?? {}).find(
-      (id) => conf!.zones[id],
-    )
-    const origincert = firstZoneId
-      ? `/root/.cloudflared/zone-${firstZoneId}.pem`
-      : undefined
+      // Find first zone cert for origincert-required commands
+      const conf = await store.read().once()
+      const firstZoneId = Object.keys(conf?.zones ?? {}).find(
+        (id) => conf!.zones[id],
+      )
+      const origincert = firstZoneId
+        ? `/root/.cloudflared/zone-${firstZoneId}.pem`
+        : undefined
 
-    if (selection.selection === 'new') {
-      const name = selection.value.name?.trim()
-      if (!name) throw new Error(i18n('Tunnel name is required.'))
+      if (selection.selection === 'new') {
+        const name = selection.value.name?.trim()
+        if (!name) throw new Error(i18n('Tunnel name is required.'))
 
-      // Create the tunnel - response includes id and name
-      const stdout = await runCf(
+        // Create the tunnel - response includes id and name
+        const stdout = await runCf(
+          effects,
+          ['tunnel', 'create', '--output', 'json', name],
+          30_000,
+          origincert,
+        )
+        const created = JSON.parse(stdout.trim())
+        tunnelId = created.id
+        tunnelName = created.name
+      } else {
+        tunnelId = selection.selection
+        const listOut = await runCf(
+          effects,
+          ['tunnel', 'list', '--output', 'json'],
+          30_000,
+          origincert,
+        )
+        const tunnels = parseTunnelList(listOut)
+        const found = tunnels.find((t) => t.id === tunnelId)
+        tunnelName = found?.name ?? tunnelId
+      }
+
+      // Save credentials JSON to volume (delete first - cloudflared refuses to overwrite)
+      const credFile = `/root/.cloudflared/${tunnelId}.json`
+      const credSubpath = `/.cloudflared/${tunnelId}.json`
+      try {
+        const { unlink } = await import('node:fs/promises')
+        await unlink(sdk.volumes.main.subpath(credSubpath))
+      } catch {
+        /* file didn't exist, that's fine */
+      }
+      await runCf(
         effects,
-        ['tunnel', 'create', '--output', 'json', name],
+        ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId],
         30_000,
         origincert,
       )
-      const created = JSON.parse(stdout.trim())
-      tunnelId = created.id
-      tunnelName = created.name
-    } else {
-      tunnelId = selection.selection
-      const listOut = await runCf(
-        effects,
-        ['tunnel', 'list', '--output', 'json'],
-        30_000,
-        origincert,
-      )
-      const tunnels = parseTunnelList(listOut)
-      const found = tunnels.find((t) => t.id === tunnelId)
-      tunnelName = found?.name ?? tunnelId
-    }
 
-    // Save credentials JSON to volume (delete first - cloudflared refuses to overwrite)
-    const credFile = `/root/.cloudflared/${tunnelId}.json`
-    const credSubpath = `/.cloudflared/${tunnelId}.json`
-    try {
-      const { unlink } = await import('node:fs/promises')
-      await unlink(sdk.volumes.main.subpath(credSubpath))
-    } catch {
-      /* file didn't exist, that's fine */
-    }
-    await runCf(
-      effects,
-      ['tunnel', 'token', `--cred-file=${credFile}`, tunnelId],
-      30_000,
-      origincert,
-    )
+      const tunnelAccountId = firstZoneId
+        ? (conf?.zones?.[firstZoneId]?.accountId ?? '')
+        : ''
 
-    const tunnelAccountId = firstZoneId
-      ? (conf?.zones?.[firstZoneId]?.accountId ?? '')
-      : ''
+      await store.merge(effects, {
+        tunnel: { id: tunnelId, name: tunnelName, accountId: tunnelAccountId },
+      })
 
-    await store.merge(effects, {
-      tunnel: { id: tunnelId, name: tunnelName, accountId: tunnelAccountId },
-    })
-
-    console.info(`Tunnel set to: ${tunnelName} (${tunnelId})`)
-  },
+      console.info(`Tunnel set to: ${tunnelName} (${tunnelId})`)
+    }),
 )

@@ -41,13 +41,27 @@ If the DNS record could not be created automatically, the result tells you exact
 
 - **Login to Cloudflare** / **Add DNS Zone** — authorize a domain. Run it once per domain.
 - **Cloudflare Tunnel** — choose or create the tunnel this server runs.
-- **Remove DNS Zone** — stop managing a domain here. Its records and routes in Cloudflare are not deleted, so anything already working keeps working.
-- **Import Public Hostnames** — adopt addresses that already exist on the tunnel, so they show up on their services here and are managed from then on. Safe to run any time; it skips anything it already tracks and lists what it imported and what it left alone.
+- **Remove DNS Zone** — stop managing a domain here. Its records and routes in Cloudflare are not deleted, so anything already working keeps working. Complete any pending hostname deletions with **Repair Cloudflare Routes** before removing their zone.
+- **Import Public Hostnames** — adopt addresses that already exist on the tunnel, so they show up on their services here and are managed from then on. It skips anything it already tracks and lists what it imported and what it left alone. Resolve pending deletions or restore deferrals before importing.
 - **Managed Public Routes** — see the tunnel, the domains, and every address managed here, with what each one points at.
-- **Repair Cloudflare Routes** — retry after a failed update. Run it once you've fixed what went wrong.
+- **Repair Cloudflare Routes** — retry after a failed update. It also removes hostnames for services absent from this server, including services not yet restored, and retries deletions paused after a restore.
 
 ## Limitations
 
 - An address created here points at your service over plain HTTP inside the server. A service that only speaks HTTPS on the port you pick cannot be published this way.
 - Switching to a different tunnel does not move addresses you already created — their DNS records still point at the old tunnel until you recreate them.
 - If an automatic route update fails, a **Repair Cloudflare Routes** task appears. Fix the reported cause, then run the action to retry.
+
+## Uninstalling a routed service
+
+Cloudflare Tunnel automatically removes the public hostname route and its matching DNS record when its service is uninstalled. Stopping the service keeps its hostname. After reinstalling, add the subdomain again from the service’s addresses.
+
+If cleanup fails, **Managed Public Routes** shows the hostname as pending removal. Resolve the problem reported by the task, then run **Repair Cloudflare Routes** to retry. A DNS record changed to point elsewhere is preserved and reported for you to check in Cloudflare.
+
+## Restoring from backup
+
+If you restore Cloudflare Tunnel before its routed services, their hostnames are paused and their Cloudflare routes and DNS records are preserved. The task lists the affected hostnames. This pause survives restarts and updates. Restore each missing service to resume its routes automatically; uninstalling it later removes its hostnames normally.
+
+Deletions already pending in the backup are also paused, even if their services are present. When ready, run **Repair Cloudflare Routes** to retry those deletions and remove hostnames for services that are still absent. Wait until the services you want to keep have been restored before running Repair.
+
+Restoring onto a second server while the original is still running connects both servers to the same tunnel. The restore pause prevents automatic deletion of missing services' hostnames; it does not make sharing one tunnel between two active servers safe.

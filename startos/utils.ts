@@ -1,13 +1,7 @@
 import { sdk } from './sdk'
 import { T } from '@start9labs/start-sdk'
 
-/**
- * Standard mounts for cloudflared CLI subcontainers.
- * Mounts the main volume at /root/data and .cloudflared at /root/.cloudflared.
- *
- * .cloudflared must be writable here because tunnel token commands write
- * credentials into the mounted volume.
- */
+// Cloudflared CLI mounts require writable credentials.
 export const cfMounts = sdk.Mounts.of()
   .mountVolume({
     volumeId: 'main',
@@ -22,10 +16,7 @@ export const cfMounts = sdk.Mounts.of()
     readonly: false,
   })
 
-/**
- * Run a cloudflared command in a temp subcontainer and return stdout as a string.
- * Throws if exit code is non-zero.
- */
+// Run a temporary cloudflared command and return its stdout.
 export async function runCf(
   effects: T.Effects,
   args: string[],
@@ -52,4 +43,24 @@ export async function runCf(
       return result.stdout.toString()
     },
   )
+}
+
+// Serialize remote route changes with their local writes.
+let routeOperation: Promise<unknown> = Promise.resolve()
+
+export function withRouteLock<A>(run: () => Promise<A>): Promise<A> {
+  const result = routeOperation.then(run)
+  routeOperation = result.catch(() => undefined)
+  return result
+}
+
+export async function isPackageInstalled(
+  effects: T.Effects,
+  packageId: string,
+  watch = false,
+): Promise<boolean> {
+  // The server's admin host is not an installed service package.
+  if (packageId === 'start-os') return true
+  const present = sdk.getServiceManifest(effects, packageId, Boolean)
+  return watch ? present.const() : present.once()
 }

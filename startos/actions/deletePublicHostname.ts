@@ -1,11 +1,8 @@
 import { sdk } from '../sdk'
-import { IngressEntry, store } from '../fileModels/store.yaml'
-import { deleteDnsRecord, summarizeCloudflareError } from '../cfApi'
+import { summarizeCloudflareError } from '../cfApi'
 import { i18n } from '../i18n'
-import {
-  associateMigratedIngressWithZones,
-  updateCloudflareIngress,
-} from '../init/reconcileIngress'
+import { removeManagedHostname } from '../init/reconcileIngress'
+import { withRouteLock } from '../utils'
 
 const { InputSpec, Value } = sdk
 
@@ -49,107 +46,22 @@ export const deletePublicHostname = sdk.Action.withInput(
   async ({ effects, input }) => {
     const { hostname } = input.urlPluginMetadata
 
-    // Read before mutating so we can look up the zone for the remote update and DNS deletion.
-    const conf = await store.read().once()
-    if (!conf) {
-      throw new Error(i18n('Cloudflared configuration is unavailable.'))
-    }
-    const entry = conf.ingress?.[hostname]
-    const zoneId = entry?.zoneId
-    const zone = zoneId ? conf.zones?.[zoneId] : undefined
-    const nextIngress = { ...(conf.ingress ?? {}) }
-    delete nextIngress[hostname]
-    let migratedIngress: Record<string, IngressEntry> = {}
-
-    if (conf.tunnel) {
-      if (!zone) {
-        throw new Error(
-          i18n(
-            'No Cloudflare zone credentials found for ${hostname}. Refusing to remove the local entry before the remote tunnel configuration is updated.',
-            { hostname },
-          ),
-        )
-      }
-
-      // Remove only this hostname from the complete live configuration so
-      // dashboard-managed routes and advanced settings remain untouched.
+    return withRouteLock(async () => {
       try {
-        const result = await updateCloudflareIngress(
-          effects,
-          {
-            accountId: zone.accountId,
-            tunnelId: conf.tunnel.id,
-            apiToken: zone.apiToken,
-          },
-          {},
-          [hostname],
-          { [hostname]: entry?.service ?? null },
-        )
-        migratedIngress = associateMigratedIngressWithZones(
-          result.migratedIngress,
-          conf.zones,
-        )
+        await removeManagedHostname(effects, hostname)
       } catch (error) {
-        const summary = summarizeCloudflareError(error)
-        console.error(
-          `Failed to update Cloudflare tunnel config while removing ${hostname}: ${summary}`,
-        )
+        const detail = summarizeCloudflareError(error)
+        console.error(`Failed to remove ${hostname}: ${detail}`)
         return {
-          version: '1',
+          version: '1' as const,
           title: i18n('Cloudflare Update Failed'),
           message: i18n(
-            'Could not remove ${hostname} from the Cloudflare tunnel configuration. ${detail}',
-            { hostname, detail: summary },
+            'Could not finish removing public hostnames: ${detail}. Run Repair Cloudflare Routes to retry.',
+            { detail: `${hostname}: ${detail}` },
           ),
           result: null,
         }
       }
-    }
-
-    // Delete DNS record using the zone-specific token from the ingress entry
-    let dnsWarning: string | null = null
-    if (zone) {
-      try {
-        const dnsResult = await deleteDnsRecord(
-          zoneId!,
-          hostname,
-          zone.apiToken,
-        )
-        if (dnsResult.errors.length > 0) {
-          dnsWarning = i18n(
-            'The Cloudflare tunnel was updated, but deleting the DNS record failed: ${detail}',
-            { detail: dnsResult.errors[0] },
-          )
-        }
-      } catch (error) {
-        const summary = summarizeCloudflareError(error)
-        console.error(`Failed to delete DNS record for ${hostname}: ${summary}`)
-        dnsWarning = i18n(
-          'The Cloudflare tunnel was updated, but deleting the DNS record failed: ${detail}',
-          { detail: summary },
-        )
-      }
-    } else {
-      console.info(`No zone info for ${hostname} - delete DNS record manually`)
-      dnsWarning = i18n(
-        'The Cloudflare tunnel was updated, but this package could not determine which zone to use for deleting the DNS record automatically.',
-      )
-    }
-
-    await store.write(effects, {
-      ...conf,
-      ingress: { ...nextIngress, ...migratedIngress },
     })
-
-    console.info(`Public hostname ${hostname} removed`)
-
-    if (dnsWarning) {
-      return {
-        version: '1',
-        title: i18n('Public Hostname Removed with DNS Warning'),
-        message: dnsWarning,
-        result: null,
-      }
-    }
   },
 )

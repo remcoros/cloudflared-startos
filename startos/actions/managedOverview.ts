@@ -73,9 +73,24 @@ function getZoneGroups(
     const zoneRoutes = ingressEntries.filter(([, entry]) => entry.zoneId === id)
 
     const routeGroups: T.ActionResultMember[] = zoneRoutes.length
-      ? zoneRoutes.map(([hostname, entry]) =>
-          group(hostname, [
-            single(i18n('Public URL'), `https://${hostname}`, null, true),
+      ? zoneRoutes.map(([hostname, entry]) => {
+          const paused = !!entry.removal || !!entry.restoreDeferred
+          let status = entry.service
+          if (entry.restoreDeferred) {
+            status = i18n(
+              'Paused after restore. Restore the service or run Repair Cloudflare Routes; pending deletions require Repair.',
+            )
+          } else if (entry.removal) {
+            status = i18n(
+              'Removal pending. Run Repair Cloudflare Routes to retry.',
+            )
+          }
+          return group(hostname, [
+            ...(paused
+              ? []
+              : [
+                  single(i18n('Public URL'), `https://${hostname}`, null, true),
+                ]),
             single(
               i18n('Package'),
               entry.packageId === 'start-os'
@@ -83,9 +98,14 @@ function getZoneGroups(
                 : entry.packageId,
             ),
             single(i18n('Interface ID'), entry.interfaceId),
-            single(i18n('Internal Target'), entry.service, null, true),
-          ]),
-        )
+            single(
+              paused ? i18n('Status') : i18n('Internal Target'),
+              status,
+              null,
+              !paused,
+            ),
+          ])
+        })
       : [
           single(
             i18n('Application Routes'),

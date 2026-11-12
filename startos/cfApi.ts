@@ -256,13 +256,36 @@ export async function deleteDnsRecord(
   zoneId: string,
   hostname: string,
   apiToken: string,
+  tunnelId: string,
 ): Promise<DeleteDnsRecordResult> {
   const listData = await fetchCloudflare(
     `${CF_API}/zones/${zoneId}/dns_records?name=${encodeURIComponent(hostname)}&type=CNAME`,
     { headers: authHeaders(apiToken) },
     `Failed to list DNS records for ${hostname}`,
   )
-  const records: Array<{ id: string }> = listData.result ?? []
+  const records: unknown = listData.result
+  const normalize = (name: string) => name.toLowerCase().replace(/\.$/, '')
+  const target = normalize(`${tunnelId}.cfargotunnel.com`)
+  if (
+    !Array.isArray(records) ||
+    records.some(
+      (record) =>
+        !isRecord(record) ||
+        typeof record.id !== 'string' ||
+        record.type !== 'CNAME' ||
+        typeof record.name !== 'string' ||
+        normalize(record.name) !== normalize(hostname) ||
+        typeof record.content !== 'string' ||
+        normalize(record.content) !== target,
+    )
+  ) {
+    throw new Error(
+      i18n(
+        'The DNS record for ${hostname} no longer points at this tunnel, or Cloudflare returned an invalid record. Refusing to delete it.',
+        { hostname },
+      ),
+    )
+  }
   const errors: string[] = []
   let deletedCount = 0
 
