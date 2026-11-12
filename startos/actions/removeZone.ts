@@ -69,6 +69,20 @@ export const removeZone = sdk.Action.withInput(
       if (!conf) {
         throw new Error(i18n('Cloudflared configuration is unavailable.'))
       }
+      const pending = Object.entries(conf.ingress)
+        .filter(([, entry]) => entry?.zoneId === zoneId && entry.removal)
+        .map(([hostname]) => hostname)
+      if (pending.length) {
+        return {
+          version: '1',
+          title: i18n('DNS Zone Still Required'),
+          message: i18n(
+            'Finish pending deletions with Repair Cloudflare Routes before removing this DNS zone: ${hostnames}',
+            { hostnames: pending.join(', ') },
+          ),
+          result: null,
+        }
+      }
       const nextIngress = { ...conf.ingress }
       for (const [hostname, entry] of Object.entries(conf.ingress ?? {})) {
         if (entry?.zoneId === zoneId) {

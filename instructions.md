@@ -41,7 +41,7 @@ If the DNS record could not be created automatically, the result tells you exact
 
 - **Login to Cloudflare** / **Add DNS Zone** — authorize a domain. Run it once per domain.
 - **Cloudflare Tunnel** — choose or create the tunnel this server runs.
-- **Remove DNS Zone** — stop managing a domain here. Its records and routes in Cloudflare are not deleted, so anything already working keeps working.
+- **Remove DNS Zone** — stop managing a domain here. Its records and routes in Cloudflare are not deleted, so anything already working keeps working. Complete any pending hostname deletions with **Repair Cloudflare Routes** before removing their zone.
 - **Import Public Hostnames** — adopt addresses that already exist on the tunnel, so they show up on their services here and are managed from then on. It skips anything it already tracks and lists what it imported and what it left alone. Resolve pending deletions or restore deferrals before importing.
 - **Managed Public Routes** — see the tunnel, the domains, and every address managed here, with what each one points at.
 - **Repair Cloudflare Routes** — retry after a failed update. It also removes hostnames for services absent from this server, including services not yet restored, and retries deletions paused after a restore.

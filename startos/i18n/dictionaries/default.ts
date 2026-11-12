@@ -155,6 +155,10 @@ const dict = {
   'Paused after restore. Restore the service or run Repair Cloudflare Routes; pending deletions require Repair.': 337,
   'Changes to ${hostname} are paused after restore. Restore its service or run Repair Cloudflare Routes before adding it again.': 338,
 
+  'DNS Zone Still Required': 339,
+  'Finish pending deletions with Repair Cloudflare Routes before removing this DNS zone: ${hostnames}': 340,
+  '${hostname} is paused after restore. Run Repair Cloudflare Routes before deleting it.': 341,
+
   // action groups
   Configuration: 400,
   Import: 401,

@@ -158,6 +158,9 @@ export default {
     336: 'Los nombres de host restaurados están en espera: ${hostnames}. Restaura sus servicios para reanudar las rutas sin eliminación pendiente, o ejecuta Reparar rutas de Cloudflare para eliminar las rutas de los servicios ausentes y reintentar las eliminaciones pausadas.',
     337: 'En pausa tras la restauración. Restaura el servicio o ejecuta Reparar rutas de Cloudflare; las eliminaciones pendientes requieren Reparar.',
     338: 'Los cambios de ${hostname} están en pausa tras la restauración. Restaura su servicio o ejecuta Reparar rutas de Cloudflare antes de añadirlo de nuevo.',
+    339: 'La zona DNS sigue siendo necesaria',
+    340: 'Completa las eliminaciones pendientes con Reparar rutas de Cloudflare antes de eliminar esta zona DNS: ${hostnames}',
+    341: '${hostname} está en pausa tras la restauración. Ejecuta Reparar rutas de Cloudflare antes de eliminarlo.',
   },
   de_DE: {
     // main.ts
@@ -316,6 +319,9 @@ export default {
     336: 'Wiederhergestellte Hostnamen warten: ${hostnames}. Stellen Sie ihre Dienste wieder her, um Routen ohne ausstehende Löschung fortzusetzen, oder führen Sie Cloudflare-Routen reparieren aus, um Routen fehlender Dienste zu entfernen und pausierte Löschungen zu wiederholen.',
     337: 'Nach Wiederherstellung pausiert. Stellen Sie den Dienst wieder her oder führen Sie Cloudflare-Routen reparieren aus; ausstehende Löschungen erfordern Reparieren.',
     338: 'Änderungen an ${hostname} sind nach der Wiederherstellung pausiert. Stellen Sie den Dienst wieder her oder führen Sie Cloudflare-Routen reparieren aus, bevor Sie den Hostnamen erneut hinzufügen.',
+    339: 'DNS-Zone wird noch benötigt',
+    340: 'Schließen Sie ausstehende Löschungen mit Cloudflare-Routen reparieren ab, bevor Sie diese DNS-Zone entfernen: ${hostnames}',
+    341: '${hostname} ist nach der Wiederherstellung pausiert. Führen Sie Cloudflare-Routen reparieren aus, bevor Sie den Hostnamen löschen.',
   },
   pl_PL: {
     // main.ts
@@ -474,6 +480,9 @@ export default {
     336: 'Przywrócone nazwy hostów oczekują: ${hostnames}. Przywróć ich usługi, aby wznowić trasy bez oczekującego usunięcia, lub uruchom Napraw trasy Cloudflare, aby usunąć trasy nieobecnych usług i ponowić wstrzymane usunięcia.',
     337: 'Wstrzymano po przywróceniu. Przywróć usługę lub uruchom Napraw trasy Cloudflare; oczekujące usunięcia wymagają naprawy.',
     338: 'Zmiany dla ${hostname} wstrzymano po przywróceniu. Przywróć usługę lub uruchom Napraw trasy Cloudflare przed ponownym dodaniem.',
+    339: 'Strefa DNS jest nadal potrzebna',
+    340: 'Dokończ oczekujące usunięcia za pomocą Napraw trasy Cloudflare przed usunięciem tej strefy DNS: ${hostnames}',
+    341: '${hostname} wstrzymano po przywróceniu. Uruchom Napraw trasy Cloudflare przed usunięciem.',
   },
   fr_FR: {
     // main.ts
@@ -632,5 +641,8 @@ export default {
     336: 'Des noms d’hôte restaurés sont en attente : ${hostnames}. Restaurez leurs services pour reprendre les routes sans suppression en attente, ou exécutez Réparer les routes Cloudflare pour supprimer les routes des services absents et réessayer les suppressions suspendues.',
     337: 'Suspendu après restauration. Restaurez le service ou exécutez Réparer les routes Cloudflare ; les suppressions en attente nécessitent une réparation.',
     338: 'Les modifications de ${hostname} sont suspendues après restauration. Restaurez son service ou exécutez Réparer les routes Cloudflare avant de l’ajouter à nouveau.',
+    339: 'La zone DNS est encore nécessaire',
+    340: 'Terminez les suppressions en attente avec Réparer les routes Cloudflare avant de retirer cette zone DNS : ${hostnames}',
+    341: '${hostname} est suspendu après restauration. Exécutez Réparer les routes Cloudflare avant de le supprimer.',
   },
 } satisfies Record<string, LangDict>

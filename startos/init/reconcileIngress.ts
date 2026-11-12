@@ -314,11 +314,15 @@ async function migrateLegacyRules(
   const ingress: Record<string, IngressEntry> = {}
 
   for (const rule of rules) {
+    if (!isWholeHostnameRule(rule)) {
+      next.push(rule)
+      continue
+    }
     const hostname =
       typeof rule.hostname === 'string'
         ? normalizedHostname(rule.hostname)
         : null
-    if (hostname && skipHostnames.has(hostname) && isWholeHostnameRule(rule)) {
+    if (hostname && skipHostnames.has(hostname)) {
       next.push(rule)
       continue
     }
@@ -397,7 +401,7 @@ export async function updateCloudflareIngress(
     if (blocked) {
       throw new Error(
         i18n(
-          blocked.restoreDeferred
+          blocked.restoreDeferred && !blocked.removal
             ? 'Changes to ${hostname} are paused after restore. Restore its service or run Repair Cloudflare Routes before adding it again.'
             : 'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
           { hostname },
@@ -478,6 +482,14 @@ export async function removeManagedHostname(
   const conf = await store.read().once()
   const entry = conf?.ingress[hostname]
   if (!conf || !entry) return
+  if (entry.restoreDeferred) {
+    throw new Error(
+      i18n(
+        '${hostname} is paused after restore. Run Repair Cloudflare Routes before deleting it.',
+        { hostname },
+      ),
+    )
+  }
   const zone = conf.zones[entry.zoneId]
   const removal =
     entry.removal ??
@@ -719,7 +731,7 @@ async function reconcileConfig(
 
 export async function reconcileIngressOnce(
   effects: T.Effects,
-  options: ReconcileOptions = {},
+  options: Pick<ReconcileOptions, 'confirmDeferred'> = {},
 ) {
   return withRouteLock(async () => {
     let conf = await store.read().once()
@@ -734,6 +746,14 @@ export async function reconcileIngressOnce(
 }
 
 export const reconcileIngress = sdk.setupOnInit(async (effects, kind) => {
+  if (kind === 'restore') {
+    // A failed deferral write must abort restore before registering retries.
+    await withRouteLock(async () => {
+      const conf = await store.read().once()
+      if (conf) await updateRestoreDeferrals(effects, conf, { restoring: true })
+    })
+  }
+
   // Watch route choices, not the resolved origins and repair state we write.
   const targets = await store
     .read((value) => ({
@@ -769,7 +789,7 @@ export const reconcileIngress = sdk.setupOnInit(async (effects, kind) => {
     }
 
     // Read the latest store inside the route lock, after earlier actions finish.
-    await reconcileIngressOnce(effects, { restoring: kind === 'restore' })
+    await reconcileIngressOnce(effects)
   } catch (error) {
     console.error('Cloudflare route reconciliation failed:', error)
   }
