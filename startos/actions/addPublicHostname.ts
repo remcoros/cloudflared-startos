@@ -166,14 +166,6 @@ export const addPublicHostname = sdk.Action.withInput(
       }
 
       const hostname = `${subdomain}.${zone.zoneName}`
-      if (conf.ingress[hostname]?.removal) {
-        throw new Error(
-          i18n(
-            'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
-            { hostname },
-          ),
-        )
-      }
       const tunnelId = conf.tunnel.id
       const stableEntry = {
         packageId,

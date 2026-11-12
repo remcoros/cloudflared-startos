@@ -379,7 +379,8 @@ export function associateMigratedIngressWithZones(
 
 /**
  * Safely update owned routes while retaining the complete live Cloudflare
- * configuration. Legacy .startos targets are migrated in the same atomic PUT.
+ * configuration. Pending removals cannot be upserted or migrated.
+ * Legacy .startos targets are migrated unless disabled.
  */
 export async function updateCloudflareIngress(
   effects: T.Effects,
@@ -389,8 +390,21 @@ export async function updateCloudflareIngress(
   expectedServices: Record<string, string | null> = {},
   options: { migrateLegacy?: boolean } = {},
 ) {
+  const pendingRemovals = new Set(
+    Object.entries((await store.read((value) => value.ingress).once()) ?? {})
+      .filter(([, entry]) => entry?.removal)
+      .map(([hostname]) => normalizedHostname(hostname)),
+  )
   const resolvedUpserts: Record<string, IngressEntry> = {}
   for (const [hostname, entry] of Object.entries(upserts)) {
+    if (pendingRemovals.has(normalizedHostname(hostname))) {
+      throw new Error(
+        i18n(
+          'Cleanup for ${hostname} is pending. Run Repair Cloudflare Routes before adding it again.',
+          { hostname },
+        ),
+      )
+    }
     const service = await resolveService(effects, entry)
     if (!service) {
       throw new Error(
@@ -406,6 +420,7 @@ export async function updateCloudflareIngress(
   const removals = new Set(removeHostnames.map(normalizedHostname))
   const skipHostnames = new Set([
     ...removals,
+    ...pendingRemovals,
     ...Object.keys(resolvedUpserts).map(normalizedHostname),
   ])
   let migrated = 0
